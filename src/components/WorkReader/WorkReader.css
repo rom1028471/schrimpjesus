@@ -107,7 +107,7 @@
   background: none;
   box-shadow: 0 2px 16px 0 rgba(0,0,0,0.09);
   border-radius: 18px;
-  padding: 0 0 4rem 0 !important;
+  padding: 0 0 0 0 !important;
   box-sizing: border-box;
   overflow-y: auto;
   font-size: 1.18rem;
@@ -269,15 +269,36 @@
 .footer-content {
   background: #23233a;
   box-shadow: 0 2px 16px 0 rgba(0,0,0,0.09);
-  border-radius: 18px;
+  border-radius: 0;
   padding: 1.5rem 2vw;
   color: var(--text-color, #f7f7f7);
-  opacity: 0.8;
+  opacity: 1;
 }
 
 .footer-content p {
   margin: 0;
   font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* Анимированный прямоугольник для хедера */
+.workreader-header-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff7ac6, #b388ff, #6ec6ff, #ff7ac6);
+  background-size: 200% 100%;
+  animation: headerGradient 3s ease-in-out infinite;
+  z-index: 1001;
+}
+
+@keyframes headerGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* Мобильная адаптация футера */
@@ -288,7 +309,5 @@
   
   .footer-content {
     padding: 1rem 2vw;
-    border-radius: 0;
-    font-size: 0.8rem;
   }
 }
