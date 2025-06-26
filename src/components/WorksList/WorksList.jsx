@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Header from '../Header/Header';
 import './WorksList.css';
 
 const WorksList = ({ works, onSelectWork }) => {
   const [hoveredWork, setHoveredWork] = useState(null);
+  const base = import.meta.env.BASE_URL || '/';
 
   return (
     <div className="works-list">
-      <header className="list-header">
-        <h1 className="main-title">Произведения SchrimpJesus</h1>
-        <p className="subtitle">Выбери произведение для чтения</p>
-      </header>
+      <Header 
+        title="Произведения SchrimpJesus" 
+        subtitle="Выбери произведение для чтения" 
+        isOpen={true}
+      />
 
       <div className="works-grid">
         {works.map((work, index) => (
@@ -26,7 +29,7 @@ const WorksList = ({ works, onSelectWork }) => {
             <div className="card-background">
               {work.coverImage && (
                 <img 
-                  src={work.coverImage} 
+                  src={`${base}assets/images/${work.coverImage}`}
                   alt={work.title}
                   className="cover-image"
                 />

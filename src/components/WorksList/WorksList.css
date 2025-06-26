@@ -1,7 +1,7 @@
 /* Основной стиль списка произведений */
 .works-list {
-  background: #1a1a2e;
-  color: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   text-align: center;
   padding-bottom: 2rem;
   min-height: 100vh;
@@ -10,7 +10,7 @@
 
 .list-header {
   padding: 2rem 0;
-  background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460);
+  background: var(--header-bg);
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
 
@@ -18,7 +18,7 @@
   font-size: 2.5em;
   margin: 0;
   text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
-  background: linear-gradient(45deg, #ff7ac6, #00ff88);
+  background: linear-gradient(45deg, var(--accent-pink), var(--accent-cyan));
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -39,7 +39,7 @@
 }
 
 .work-card {
-  background: #16213e;
+  background: var(--bg-secondary);
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
@@ -70,7 +70,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-bottom: 3px solid #0f3460;
+  border-bottom: 3px solid var(--bg-tertiary);
 }
 
 .card-overlay {
@@ -90,19 +90,19 @@
 
 .work-title {
   font-size: 1.4em;
-  color: #00ff88;
+  color: var(--accent-cyan);
   margin: 0;
 }
 
 .work-author {
   font-size: 0.9em;
-  color: #ff7ac6;
+  color: var(--accent-pink);
   margin: 0.5rem 0;
 }
 
 .work-genre {
   font-size: 0.8em;
-  color: #bf59cf;
+  color: var(--secondary-purple);
 }
 
 .work-description {
@@ -114,7 +114,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.8em;
-  color: #ddd;
+  color: var(--text-secondary);
   opacity: 0.8;
 }
 
@@ -136,7 +136,7 @@
   font-size: 1.2em;
   color: #fff;
   padding: 0.5em 1em;
-  background: linear-gradient(45deg, #ff7ac6, #bf59cf);
+  background: linear-gradient(45deg, var(--accent-pink), var(--secondary-purple));
   border-radius: 50px;
   box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
 }
@@ -152,13 +152,13 @@
 }
 
 .placeholder {
-  background: linear-gradient(45deg, #16213e, #1a1a2e);
+  background: linear-gradient(45deg, var(--bg-secondary), var(--bg-primary));
   color: #999;
 }
 
 .list-footer {
   padding-top: 2rem;
-  border-top: 1px solid #0f3460;
+  border-top: 1px solid var(--bg-tertiary);
   opacity: 0.8;
 }
 

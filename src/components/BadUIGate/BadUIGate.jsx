@@ -11,11 +11,6 @@ const BadUIGate = ({ onComplete }) => {
 
   const challenges = [
     {
-      title: "Поймай кнопку",
-      instruction: "Наведи курсор на кнопку и удержи 3 секунды",
-      component: "mouse-challenge"
-    },
-    {
       title: "Секретный пароль",
       instruction: "Введи слово, которое появляется при печати задом наперед",
       component: "text-challenge"

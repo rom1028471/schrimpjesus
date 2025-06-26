@@ -4,7 +4,74 @@
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid rgba(255, 122, 198, 0.2);
+  transition: transform 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.5s cubic-bezier(0.4,0,0.2,1), background 0.6s cubic-bezier(0.4,0,0.2,1);
+  transform: translateY(0);
+  opacity: 1;
+  z-index: 100;
 }
+
+.app-header.closed {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Светлая тема */
+[data-theme='light'] .app-header {
+  background: #f8f4f0;
+  color: #2d1b69;
+  border-bottom: 1px solid rgba(45, 27, 105, 0.1);
+}
+[data-theme='light'] .header-title {
+  background: linear-gradient(45deg, #6a11cb, #2575fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 20px rgba(160, 120, 255, 0.12);
+}
+[data-theme='light'] .header-subtitle {
+  color: #2d1b69;
+}
+
+/* Кнопка смены темы */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  transition: transform 0.3s ease, color 0.3s ease;
+  outline: none;
+  color: inherit;
+  padding: 0.2em 0.5em;
+  font-weight: bold;
+}
+.theme-toggle-btn:hover {
+  transform: rotate(180deg);
+  color: #ff7ac6;
+}
+[data-theme='light'] .theme-toggle-btn:hover {
+  color: #2d1b69;
+}
+.theme-toggle-btn:active {
+  transform: scale(0.9);
+}
+
+/* Светлая тема — фон и текст */
+[data-theme='light'] body {
+  background: #f5f5f5;
+  color: #2d1b69;
+  transition: background 0.6s, color 0.6s;
+}
+[data-theme='light'] .app-header {
+  color: #2d1b69;
+}
+
+/* Плавная анимация overlay уже реализована в ThemeContext */
 
 .app-header::before {
   content: '';
@@ -20,8 +87,11 @@
 }
 
 @keyframes headerFloat {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(1deg); }
+  0% { transform: translateY(0) rotate(-2deg); }
+  25% { transform: translateY(-15px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(2deg); }
+  75% { transform: translateY(-15px) rotate(0deg); }
+  100% { transform: translateY(0) rotate(-2deg); }
 }
 
 .header-content {
@@ -36,9 +106,9 @@
 }
 
 .back-button {
-  background: rgba(255, 122, 198, 0.1);
-  border: 1px solid rgba(255, 122, 198, 0.3);
-  color: #ff7ac6;
+  background: rgba(45, 27, 105, 0.1);
+  border: 1px solid rgba(45, 27, 105, 0.3);
+  color: #2d1b69;
   padding: 0.75rem 1.5rem;
   border-radius: 25px;
   cursor: pointer;
@@ -48,8 +118,8 @@
 }
 
 .back-button:hover {
-  background: rgba(255, 122, 198, 0.2);
-  border-color: #ff7ac6;
+  background: rgba(45, 27, 105, 0.2);
+  border-color: #2d1b69;
   transform: translateX(-5px);
 }
 
@@ -165,4 +235,93 @@
   .header-decoration {
     display: none;
   }
+}
+
+/* Компактный хедер для WorkReader на мобильных устройствах */
+.workreader-header-container .app-header {
+  padding: 0.8rem 0;
+}
+
+.workreader-header-container .header-content {
+  flex-direction: row;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  align-items: center;
+}
+
+.workreader-header-container .header-title {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.workreader-header-container .header-subtitle {
+  font-size: 0.8rem;
+  margin: 0;
+  opacity: 1;
+  animation: none;
+}
+
+.workreader-header-container .back-button {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  align-self: center;
+}
+
+.workreader-header-container .header-decoration {
+  display: none;
+}
+
+.workreader-header-container .theme-toggle-btn {
+  font-size: 1.2rem;
+  padding: 0.2em;
+}
+
+/* Светлая тема для компактного хедера */
+[data-theme='light'] .workreader-header-container .header-subtitle {
+  color: #2d1b69;
+}
+
+[data-theme='light'] .workreader-header-container .back-button {
+  background: rgba(45, 27, 105, 0.1);
+  border: 1px solid rgba(45, 27, 105, 0.3);
+  color: #2d1b69;
+}
+
+[data-theme='light'] .workreader-header-container .back-button:hover {
+  background: rgba(45, 27, 105, 0.2);
+  border-color: #2d1b69;
+}
+
+/* Десктопная версия хедера в WorkReader */
+@media (min-width: 769px) {
+  .workreader-header-container .app-header {
+    padding: 1.5rem 0;
+  }
+  
+  .workreader-header-container .header-content {
+    flex-direction: row;
+    gap: 1rem;
+    padding: 0 2rem;
+  }
+  
+  .workreader-header-container .header-title {
+    font-size: 2rem;
+  }
+  
+  .workreader-header-container .header-subtitle {
+    font-size: 1rem;
+  }
+  
+  .workreader-header-container .back-button {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .workreader-header-container .theme-toggle-btn {
+    font-size: 1.5rem;
+  }
+}
+
+[data-theme='light'] .workreader-header-container .theme-toggle-btn:hover {
+  color: #2d1b69;
 }
