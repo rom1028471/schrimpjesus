@@ -1,0 +1,183 @@
+/* Основной стиль списка произведений */
+.works-list {
+  background: #1a1a2e;
+  color: #fff;
+  text-align: center;
+  padding-bottom: 2rem;
+  min-height: 100vh;
+  font-family: 'Helvetica', 'Arial', sans-serif;
+}
+
+.list-header {
+  padding: 2rem 0;
+  background: linear-gradient(45deg, #1a1a2e, #16213e, #0f3460);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.main-title {
+  font-size: 2.5em;
+  margin: 0;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+  background: linear-gradient(45deg, #ff7ac6, #00ff88);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 1.2em;
+  opacity: 0.8;
+}
+
+.works-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+.work-card {
+  background: #16213e;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+  position: relative;
+  opacity: 0;
+  animation: fadeInCard 0.5s forwards;
+}
+
+.work-card.hovered {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes fadeInCard {
+  to {
+    opacity: 1;
+  }
+}
+
+.card-background {
+  position: relative;
+  height: 150px;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-bottom: 3px solid #0f3460;
+}
+
+.card-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.3);
+  transition: background 0.3s;
+}
+
+.card-content {
+  padding: 1rem;
+  text-align: left;
+}
+
+.work-title {
+  font-size: 1.4em;
+  color: #00ff88;
+  margin: 0;
+}
+
+.work-author {
+  font-size: 0.9em;
+  color: #ff7ac6;
+  margin: 0.5rem 0;
+}
+
+.work-genre {
+  font-size: 0.8em;
+  color: #bf59cf;
+}
+
+.work-description {
+  font-size: 0.9em;
+  margin: 0.5rem 0 1rem;
+}
+
+.work-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8em;
+  color: #ddd;
+  opacity: 0.8;
+}
+
+.card-hover-effect {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.read-button {
+  font-size: 1.2em;
+  color: #fff;
+  padding: 0.5em 1em;
+  background: linear-gradient(45deg, #ff7ac6, #bf59cf);
+  border-radius: 50px;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+}
+
+.work-card:hover .card-overlay,
+.work-card.hovered .card-overlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.work-card:hover .card-hover-effect,
+.work-card.hovered .card-hover-effect {
+  opacity: 1;
+}
+
+.placeholder {
+  background: linear-gradient(45deg, #16213e, #1a1a2e);
+  color: #999;
+}
+
+.list-footer {
+  padding-top: 2rem;
+  border-top: 1px solid #0f3460;
+  opacity: 0.8;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .main-title {
+    font-size: 2em;
+  }
+  
+  .subtitle {
+    font-size: 1em;
+  }
+  
+  .work-card {
+    transition: none;
+  }
+  
+  .work-card.hovered {
+    transform: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+}
