@@ -147,3 +147,10 @@ button:focus-visible {
 [data-theme='light'] p, [data-theme='light'] h1, [data-theme='light'] h2, [data-theme='light'] h3, [data-theme='light'] h4, [data-theme='light'] h5, [data-theme='light'] h6 {
   color: #111;
 }
+
+html, body {
+  min-height: 100dvh;
+  height: auto;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
