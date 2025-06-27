@@ -1,0 +1,68 @@
+.scroll-image-container {
+  position: relative;
+  min-height: 150vh; /* Высокий контейнер для прокрутки */
+  z-index: 1;
+}
+
+.window-image {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  /* Маска: круглая дыра, radius зависит от --reveal */
+  -webkit-mask-image: radial-gradient(circle at 50% 60%, rgba(0,0,0,calc(var(--reveal,0))), transparent calc(60% + 40% * var(--reveal,0)));
+  mask-image: radial-gradient(circle at 50% 60%, rgba(0,0,0,calc(var(--reveal,0))), transparent calc(60% + 40% * var(--reveal,0)));
+  transition: -webkit-mask-image 0.3s, mask-image 0.3s;
+}
+
+.window-image img {
+  max-width: 100vw;
+  max-height: 100vh;
+  object-fit: cover;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.window-text-content {
+  position: relative;
+  z-index: 2;
+  background: none;
+  min-height: 100vh;
+  padding: 80vh 0 2rem 0;
+  color: var(--text-primary);
+}
+
+.reveal-area {
+  position: absolute;
+  top: 50vh;
+  left: 0;
+  right: 0;
+  height: 50vh;
+  background: rgba(26, 26, 46, 0.1);
+  backdrop-filter: blur(2px);
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .scroll-image-container {
+    min-height: 120vh;
+  }
+  
+  .window-text-content {
+    padding: 60vh 0 2rem 0;
+  }
+  
+  .reveal-area {
+    top: 40vh;
+    height: 40vh;
+  }
+}
