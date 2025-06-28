@@ -1,0 +1,14 @@
+{
+  "works": [
+    {
+      "id": 1,
+      "title": "Цифровые Сны",
+      "author": "SchrimpJesus",
+      "genre": "Киберпанк",
+      "description": "История о границах между реальным и виртуальным миром",
+      "readingTime": "12 мин",
+      "coverImage": "cover1.jpg",
+      "file": "digital-dreams.md"
+    }
+  ]
+}
