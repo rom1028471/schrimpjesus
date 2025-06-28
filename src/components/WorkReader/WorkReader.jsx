@@ -120,12 +120,6 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
       const viewportHeight = window.innerHeight;
       let found = null;
       
-      // Сохраняем позицию скролла (если есть callback)
-      if (onScrollChange) {
-        const scrollPosition = window.scrollY;
-        onScrollChange(scrollPosition);
-      }
-      
       const imageBlocks = work.blocks.filter(block => block.type === 'image');
       
       // Проверяем, что все refs готовы
@@ -181,6 +175,12 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
         setActiveImage(newActiveImage);
       } else {
         setActiveImage(null);
+      }
+      
+      // Сохраняем позицию скролла (если есть callback) - отдельно от логики картинок
+      if (onScrollChange) {
+        const scrollPosition = window.scrollY;
+        onScrollChange(scrollPosition);
       }
     };
   }, [work, onScrollChange]);
