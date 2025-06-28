@@ -8,7 +8,7 @@ const MAX_WIDTH = 900;
 // Глобальная переменная для отслеживания состояния обработчика скролла
 let scrollListenerAdded = false;
 
-const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange }) => {
+const WorkReader = ({ work, onBack }) => {
   if (!work || !work.blocks) return null;
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
@@ -19,20 +19,6 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
   const base = import.meta.env.BASE_URL || '/';
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerEl = useRef(null);
-  const scrollRestored = useRef(false);
-
-  // Восстанавливаем позицию скролла при загрузке
-  useEffect(() => {
-    if (initialScrollPosition > 0 && !scrollRestored.current) {
-      const timer = setTimeout(() => {
-        if (scrollRef.current) {
-          window.scrollTo(0, initialScrollPosition);
-          scrollRestored.current = true;
-        }
-      }, 300); // Увеличиваем задержку для мобильных устройств
-      return () => clearTimeout(timer);
-    }
-  }, [initialScrollPosition, windowHeights]);
 
   // Считаем высоту хедера для отступа картинки
   useEffect(() => {
@@ -176,14 +162,8 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
       } else {
         setActiveImage(null);
       }
-      
-      // Сохраняем позицию скролла (если есть callback) - отдельно от логики картинок
-      if (onScrollChange) {
-        const scrollPosition = window.scrollY;
-        onScrollChange(scrollPosition);
-      }
     };
-  }, [work, onScrollChange]);
+  }, [work]);
 
   // Следим за скроллом - создаем обработчик только один раз
   useEffect(() => {
