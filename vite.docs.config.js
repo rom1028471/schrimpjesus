@@ -8,9 +8,9 @@ const copyWorksPlugin = () => {
   return {
     name: 'copy-works',
     writeBundle() {
-      // Копируем папку works в dist
-      copy(resolve(__dirname, 'src/works'), resolve(__dirname, 'dist/works'))
-        .then(() => console.log('✅ Works files copied to dist'))
+      // Копируем папку works в docs
+      copy(resolve(__dirname, 'src/works'), resolve(__dirname, 'docs/works'))
+        .then(() => console.log('✅ Works files copied to docs'))
         .catch(err => console.error('❌ Error copying works files:', err))
     }
   }
@@ -21,7 +21,7 @@ export default defineConfig({
   plugins: [react(), copyWorksPlugin()],
   base: '/schrimpjesus/',
   build: {
-    outDir: 'dist',
+    outDir: 'docs',
     assetsDir: 'assets',
     rollupOptions: {
       output: {
@@ -35,4 +35,4 @@ export default defineConfig({
   preview: {
     port: 3000,
   },
-})
+}) 
