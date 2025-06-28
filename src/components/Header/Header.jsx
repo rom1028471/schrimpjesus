@@ -20,7 +20,6 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
         
         <div className="header-text">
           <h1 className="header-title">{title}</h1>
-          {subtitle && <p className="header-subtitle">{subtitle}</p>}
         </div>
         
         <div className="header-actions">
@@ -35,12 +34,6 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
         </div>
         
         {children}
-        
-        <div className="header-decoration">
-          <div className="glow-orb"></div>
-          <div className="glow-orb"></div>
-          <div className="glow-orb"></div>
-        </div>
       </div>
     </header>
   );

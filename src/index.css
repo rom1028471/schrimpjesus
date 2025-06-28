@@ -25,7 +25,22 @@
   --text-primary: #f1f5f9;
   --text-secondary: #cbd5e1;
   --text-accent: #a5b4fc;
-  --header-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.98) 50%, rgba(51, 65, 85, 0.95) 100%);
+  --header-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+[data-theme="dark"] body {
+  background: #0f172a;
+  color: #f1f5f9;
+  transition: background 0.6s, color 0.6s;
+}
+
+[data-theme="dark"] .App {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] p, [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6 {
+  color: #f1f5f9;
 }
 
 /* Светлая тема */
@@ -131,6 +146,11 @@ button:focus-visible {
 
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(45deg, var(--secondary-purple), var(--accent-pink));
+}
+
+/* Темная тема - более тонкий скроллбар */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 5px;
 }
 
 /* Выделение текста */

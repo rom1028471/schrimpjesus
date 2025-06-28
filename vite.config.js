@@ -19,7 +19,7 @@ const copyWorksPlugin = () => {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), copyWorksPlugin()],
-  base: '/',
+  base: '/schrimpjesus/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

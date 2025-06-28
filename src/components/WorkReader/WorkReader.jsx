@@ -5,18 +5,16 @@ import './WorkReader.css';
 const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
 
-// Глобальная переменная для отслеживания состояния обработчика скролла
-let scrollListenerAdded = false;
-
 const WorkReader = ({ work, onBack }) => {
   if (!work || !work.blocks) return null;
+  
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
   const [windowHeights, setWindowHeights] = useState({}); // {i: px}
   const scrollRef = useRef(null);
   const windowRefs = useRef([]);
   const imageHeights = useRef({}); // {i: px}
-  const base = import.meta.env.BASE_URL || '/';
+  const base = import.meta.env.DEV ? '/schrimpjesus/' : (import.meta.env.BASE_URL || '/');
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerEl = useRef(null);
 
@@ -42,7 +40,8 @@ const WorkReader = ({ work, onBack }) => {
     work.blocks.forEach((block, i) => {
       if (block.type === 'image') {
         const img = new window.Image();
-        img.src = `${base}assets/images/${block.imageFile}`;
+        const imagePath = `${base}assets/images/${block.imageFile}`;
+        img.src = imagePath;
         img.onload = () => {
           imageHeights.current[i] = img.naturalHeight;
           // Сохраняем натуральную ширину для пересчета
@@ -57,11 +56,11 @@ const WorkReader = ({ work, onBack }) => {
           setWindowHeights(prev => ({ ...prev, [i]: windowHeight }));
         };
         img.onerror = () => {
-          console.error(`Failed to load image ${i}: ${block.imageFile}`);
+          console.error(`❌ Ошибка загрузки картинки ${i}: ${block.imageFile} по пути ${imagePath}`);
         };
       }
     });
-  }, [work]);
+  }, [work, base]);
 
   // Пересчитываем высоты при изменении размера окна
   useEffect(() => {
@@ -111,7 +110,8 @@ const WorkReader = ({ work, onBack }) => {
       // Проверяем, что все refs готовы
       const allRefsReady = imageBlocks.every((block, blockIndex) => {
         const globalIndex = work.blocks.findIndex(b => b === block);
-        return windowRefs.current[globalIndex] !== null;
+        const ref = windowRefs.current[globalIndex];
+        return ref !== null;
       });
       
       if (!allRefsReady) {
@@ -167,24 +167,25 @@ const WorkReader = ({ work, onBack }) => {
 
   // Следим за скроллом - создаем обработчик только один раз
   useEffect(() => {
-    if (scrollListenerAdded) {
-      return;
-    }
-    
-    // Слушаем скролл на window
-    const handleScroll = () => handleScrollRef.current();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    scrollListenerAdded = true;
-    
-    // Вызываем обработчик с небольшой задержкой, чтобы refs успели установиться
-    const timer = setTimeout(handleScroll, 100);
-    
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(timer);
-      scrollListenerAdded = false;
+    // Слушаем скролл на контейнере, а не на window
+    const handleScroll = () => {
+      handleScrollRef.current();
     };
-  }); // Убираем массив зависимостей полностью
+    
+    const scrollContainer = scrollRef.current;
+    
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      
+      // Вызываем обработчик с небольшой задержкой, чтобы refs успели установиться
+      const timer = setTimeout(handleScroll, 100);
+      
+      return () => {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+        clearTimeout(timer);
+      };
+    }
+  }, [work]); // Добавляем зависимость от work
 
   return (
     <div className="workreader-root">
@@ -211,7 +212,7 @@ const WorkReader = ({ work, onBack }) => {
         >
           {headerVisible && (
             <button className="hide-header-button" onClick={() => setHeaderVisible(false)}>
-              ↑ Скрыть хедер
+              ↑ Скрыть меню
             </button>
           )}
         </Header>

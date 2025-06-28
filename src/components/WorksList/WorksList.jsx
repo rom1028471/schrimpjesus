@@ -1,10 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Header/Header';
 import './WorksList.css';
 
-const WorksList = ({ works, onSelectWork }) => {
+const WorksList = ({ onWorkSelect }) => {
+  const [works, setWorks] = useState([]);
   const [hoveredWork, setHoveredWork] = useState(null);
-  const base = import.meta.env.BASE_URL || '/';
+  const base = import.meta.env.DEV ? '/schrimpjesus/' : (import.meta.env.BASE_URL || '/');
+  
+  useEffect(() => {
+    const loadWorks = async () => {
+      try {
+        const response = await fetch(`${base}works/metadata.json`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setWorks(data.works);
+      } catch (error) {
+        console.error('Ошибка загрузки списка произведений:', error);
+      }
+    };
+    
+    loadWorks();
+  }, [base]);
 
   return (
     <div className="works-list">
@@ -21,19 +39,21 @@ const WorksList = ({ works, onSelectWork }) => {
             className={`work-card ${hoveredWork === work.id ? 'hovered' : ''}`}
             onMouseEnter={() => setHoveredWork(work.id)}
             onMouseLeave={() => setHoveredWork(null)}
-            onClick={() => onSelectWork(work)}
+            onClick={() => onWorkSelect(work)}
             style={{
               animationDelay: `${index * 0.1}s`
             }}
           >
             <div className="card-background">
-              {work.coverImage && (
-                <img 
-                  src={`${base}assets/images/${work.coverImage}`}
-                  alt={work.title}
-                  className="cover-image"
-                />
-              )}
+              <div className="work-cover">
+                {work.coverImage && (
+                  <img
+                    src={`${base}assets/images/${work.coverImage}`}
+                    alt={work.title}
+                    loading="lazy"
+                  />
+                )}
+              </div>
               <div className="card-overlay" />
             </div>
 

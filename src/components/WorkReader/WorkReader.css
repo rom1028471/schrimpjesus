@@ -272,10 +272,11 @@
 /* Мобильная адаптация кнопки скрытия */
 @media (max-width: 768px) {
   .hide-header-button {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-    border-radius: 18px;
-    min-height: 36px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+    border-radius: 16px;
+    min-height: 32px;
+    max-width: 120px;
   }
 }
 

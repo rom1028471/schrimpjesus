@@ -5,6 +5,11 @@ const WorkIntro = ({ work, onStartReading, onBack }) => {
   const [currentLine, setCurrentLine] = useState(-1);
   const [showButton, setShowButton] = useState(false);
 
+  // Отладочная информация
+  console.log('🔧 WorkIntro для произведения:', work.title);
+  console.log('🔧 Количество блоков:', work.blocks?.length || 0);
+  console.log('🔧 Блоки с картинками:', work.blocks?.filter(b => b.type === 'image').map(b => b.imageFile) || []);
+
   // Интро текст с анимированными строками
   const introLines = [
     `Добро пожаловать в "${work.title}"`,
