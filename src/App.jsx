@@ -19,7 +19,7 @@ function App() {
   const handleSelectWork = async (workMeta) => {
     // Корректный путь с учётом base
     const base = import.meta.env.BASE_URL || '/';
-    const res = await fetch(`${base}src/works/${workMeta.file}`);
+    const res = await fetch(`${base}works/${workMeta.file}`);
     const md = await res.text();
     const parsed = parseWorkMd(md, workMeta);
     setSelectedWork(parsed);
