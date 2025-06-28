@@ -29,35 +29,10 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
           window.scrollTo(0, initialScrollPosition);
           scrollRestored.current = true;
         }
-      }, 100);
+      }, 300); // Увеличиваем задержку для мобильных устройств
       return () => clearTimeout(timer);
     }
   }, [initialScrollPosition, windowHeights]);
-
-  // Сохраняем позицию скролла при изменении
-  useEffect(() => {
-    if (!onScrollChange) return;
-
-    const handleScrollSave = () => {
-      const scrollPosition = window.scrollY;
-      onScrollChange(scrollPosition);
-    };
-
-    // Используем throttling для оптимизации
-    let ticking = false;
-    const throttledScrollSave = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          handleScrollSave();
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', throttledScrollSave, { passive: true });
-    return () => window.removeEventListener('scroll', throttledScrollSave);
-  }, [onScrollChange]);
 
   // Считаем высоту хедера для отступа картинки
   useEffect(() => {
@@ -145,6 +120,12 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
       const viewportHeight = window.innerHeight;
       let found = null;
       
+      // Сохраняем позицию скролла (если есть callback)
+      if (onScrollChange) {
+        const scrollPosition = window.scrollY;
+        onScrollChange(scrollPosition);
+      }
+      
       const imageBlocks = work.blocks.filter(block => block.type === 'image');
       
       // Проверяем, что все refs готовы
@@ -202,7 +183,7 @@ const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange })
         setActiveImage(null);
       }
     };
-  }, [work]);
+  }, [work, onScrollChange]);
 
   // Следим за скроллом - создаем обработчик только один раз
   useEffect(() => {
