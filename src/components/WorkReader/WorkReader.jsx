@@ -1,13 +1,15 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import Header from '../Header/Header';
 import './WorkReader.css';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useReadingState } from '../../hooks/useReadingState';
+import { useAudioTrigger } from '../../hooks/useAudioTrigger';
 
 const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
 
 const WorkReader = ({ work, onBack }) => {
-  if (!work || !work.blocks) return null;
-  
+  const { theme } = useTheme();
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
   const [windowHeights, setWindowHeights] = useState({}); // {i: px}
@@ -17,6 +19,9 @@ const WorkReader = ({ work, onBack }) => {
   const base = import.meta.env.DEV ? '/schrimpjesus/' : (import.meta.env.BASE_URL || '/');
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerEl = useRef(null);
+
+  const { readingState, updateReadingState } = useReadingState(work.id);
+  const { triggerAudio } = useAudioTrigger();
 
   // Считаем высоту хедера для отступа картинки
   useEffect(() => {
@@ -34,9 +39,6 @@ const WorkReader = ({ work, onBack }) => {
 
   // Для каждого image-разрыва создаём offscreen img для вычисления высоты
   useEffect(() => {
-    // Инициализируем массив refs правильной длины
-    windowRefs.current = new Array(work.blocks.length).fill(null);
-    
     work.blocks.forEach((block, i) => {
       if (block.type === 'image') {
         const img = new window.Image();
@@ -53,6 +55,7 @@ const WorkReader = ({ work, onBack }) => {
           const actualWidth = Math.min(img.naturalWidth, maxWidth);
           const actualHeight = (actualWidth / img.naturalWidth) * img.naturalHeight;
           const windowHeight = actualHeight * 1.3;
+          
           setWindowHeights(prev => ({ ...prev, [i]: windowHeight }));
         };
         img.onerror = () => {
@@ -64,20 +67,15 @@ const WorkReader = ({ work, onBack }) => {
 
   // Пересчитываем высоты при изменении размера окна
   useEffect(() => {
-    const handleResize = () => {
-      work.blocks.forEach((block, i) => {
-        if (block.type === 'image' && imageHeights.current[i]) {
-          const containerWidth = scrollRef.current?.offsetWidth || window.innerWidth;
-          const maxWidth = Math.min(MAX_WIDTH, containerWidth);
-          const actualWidth = Math.min(block.naturalWidth || 700, maxWidth);
-          const actualHeight = (actualWidth / (block.naturalWidth || 700)) * imageHeights.current[i];
-          setWindowHeights(prev => ({ ...prev, [i]: actualHeight * 1.3 }));
-        }
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    work.blocks.forEach((block, i) => {
+      if (block.type === 'image' && imageHeights.current[i]) {
+        const containerWidth = scrollRef.current?.offsetWidth || window.innerWidth;
+        const maxWidth = Math.min(MAX_WIDTH, containerWidth);
+        const actualWidth = Math.min(block.naturalWidth || 700, maxWidth);
+        const actualHeight = (actualWidth / (block.naturalWidth || 700)) * imageHeights.current[i];
+        setWindowHeights(prev => ({ ...prev, [i]: actualHeight * 1.3 }));
+      }
+    });
   }, [work]);
 
   // Проверяем состояние refs после рендера
@@ -136,19 +134,7 @@ const WorkReader = ({ work, onBack }) => {
         const isInActivationZone = rect.top <= viewportHeight + activationZone && rect.bottom >= 0;
         
         if (isInActivationZone) {
-          // Если окно в зоне активации, выбираем его
-          // Если уже есть активное окно, выбираем то, которое ближе к центру viewport
-          if (found === null) {
-            found = globalIndex;
-          } else {
-            const currentRect = windowRefs.current[found].getBoundingClientRect();
-            const currentDist = Math.abs((currentRect.top + currentRect.bottom) / 2 - viewportHeight / 2);
-            const newDist = Math.abs((rect.top + rect.bottom) / 2 - viewportHeight / 2);
-            
-            if (newDist < currentDist) {
-              found = globalIndex;
-            }
-          }
+          found = globalIndex;
         }
       });
       
@@ -187,9 +173,18 @@ const WorkReader = ({ work, onBack }) => {
     }
   }, [work]); // Добавляем зависимость от work
 
+  // Аудио триггер при смене картинки
+  useEffect(() => {
+    if (activeImage) {
+      triggerAudio(activeImage.file);
+      updateReadingState(activeImage.idx);
+    }
+  }, [activeImage, triggerAudio, updateReadingState]);
+
+  const winHeight = window.innerHeight;
+
   return (
-    <div className="workreader-root">
-      {/* Фиксированный хедер вверху области просмотра */}
+    <div className={`work-reader ${theme}`}>
       <div 
         ref={headerEl} 
         className="workreader-header-container"
@@ -246,6 +241,9 @@ const WorkReader = ({ work, onBack }) => {
         </div>
       ) : null}
       
+      {/* Отладочная информация */}
+      {console.log('🔧 Рендер - activeImage:', activeImage?.file, 'headerVisible:', headerVisible)}
+      
       {/* Скроллируемый текст с отступом сверху для хедера */}
       <div 
         className="workreader-scroll" 
@@ -265,6 +263,7 @@ const WorkReader = ({ work, onBack }) => {
           if (block.type === 'image') {
             // Высота окна = 1.3 * высота картинки (или 0.8 * ширина блока, если нет картинки)
             const winHeight = windowHeights[i] || scrollRef.current?.offsetWidth * 0.8 || '80vw';
+            console.log(`🏗️ Рендерим блок картинки ${i} (${block.imageFile}) с высотой:`, winHeight);
             return (
               <div
                 className="workreader-window"

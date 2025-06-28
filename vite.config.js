@@ -8,10 +8,8 @@ const copyWorksPlugin = () => {
   return {
     name: 'copy-works',
     writeBundle() {
-      // Копируем папку works в dist
-      copy(resolve(__dirname, 'src/works'), resolve(__dirname, 'dist/works'))
-        .then(() => console.log('✅ Works files copied to dist'))
-        .catch(err => console.error('❌ Error copying works files:', err))
+      return copy(resolve(__dirname, 'src/works'), resolve(__dirname, 'dist/works'))
+        .then(() => copy('public/assets', 'dist/assets'))
     }
   }
 }
