@@ -1,15 +1,13 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import Header from '../Header/Header';
 import './WorkReader.css';
-import { useTheme } from '../../contexts/ThemeContext';
-import { useReadingState } from '../../hooks/useReadingState';
-import { useAudioTrigger } from '../../hooks/useAudioTrigger';
 
 const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
 
 const WorkReader = ({ work, onBack }) => {
-  const { theme } = useTheme();
+  if (!work || !work.blocks) return null;
+  
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
   const [windowHeights, setWindowHeights] = useState({}); // {i: px}
@@ -20,8 +18,12 @@ const WorkReader = ({ work, onBack }) => {
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerEl = useRef(null);
 
-  const { readingState, updateReadingState } = useReadingState(work.id);
-  const { triggerAudio } = useAudioTrigger();
+  // Отладочная информация
+  console.log('🔧 WorkReader - Все переменные окружения:');
+  console.log('🔧 DEV:', import.meta.env.DEV);
+  console.log('🔧 BASE_URL:', import.meta.env.BASE_URL);
+  console.log('🔧 Вычисленный base:', base);
+  console.log('🔧 window.location.pathname:', window.location.pathname);
 
   // Считаем высоту хедера для отступа картинки
   useEffect(() => {
@@ -39,10 +41,19 @@ const WorkReader = ({ work, onBack }) => {
 
   // Для каждого image-разрыва создаём offscreen img для вычисления высоты
   useEffect(() => {
+    console.log('🔧 WorkReader для произведения:', work.title);
+    console.log('🔧 Количество блоков:', work.blocks.length);
+    console.log('🔧 Блоки с картинками:', work.blocks.filter(b => b.type === 'image').map(b => b.imageFile));
+    console.log('🔧 Base path:', base, 'DEV:', import.meta.env.DEV);
+    
+    // Инициализируем массив refs правильной длины
+    windowRefs.current = new Array(work.blocks.length).fill(null);
+    
     work.blocks.forEach((block, i) => {
       if (block.type === 'image') {
         const img = new window.Image();
         const imagePath = `${base}assets/images/${block.imageFile}`;
+        console.log(`🖼️ Загружаю картинку ${i}: ${block.imageFile} по пути ${imagePath}`);
         img.src = imagePath;
         img.onload = () => {
           imageHeights.current[i] = img.naturalHeight;
@@ -56,6 +67,16 @@ const WorkReader = ({ work, onBack }) => {
           const actualHeight = (actualWidth / img.naturalWidth) * img.naturalHeight;
           const windowHeight = actualHeight * 1.3;
           
+          console.log(`📏 Блок ${i} (${block.imageFile}):`, {
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight,
+            containerWidth,
+            maxWidth,
+            actualWidth,
+            actualHeight,
+            windowHeight
+          });
+          
           setWindowHeights(prev => ({ ...prev, [i]: windowHeight }));
         };
         img.onerror = () => {
@@ -67,15 +88,20 @@ const WorkReader = ({ work, onBack }) => {
 
   // Пересчитываем высоты при изменении размера окна
   useEffect(() => {
-    work.blocks.forEach((block, i) => {
-      if (block.type === 'image' && imageHeights.current[i]) {
-        const containerWidth = scrollRef.current?.offsetWidth || window.innerWidth;
-        const maxWidth = Math.min(MAX_WIDTH, containerWidth);
-        const actualWidth = Math.min(block.naturalWidth || 700, maxWidth);
-        const actualHeight = (actualWidth / (block.naturalWidth || 700)) * imageHeights.current[i];
-        setWindowHeights(prev => ({ ...prev, [i]: actualHeight * 1.3 }));
-      }
-    });
+    const handleResize = () => {
+      work.blocks.forEach((block, i) => {
+        if (block.type === 'image' && imageHeights.current[i]) {
+          const containerWidth = scrollRef.current?.offsetWidth || window.innerWidth;
+          const maxWidth = Math.min(MAX_WIDTH, containerWidth);
+          const actualWidth = Math.min(block.naturalWidth || 700, maxWidth);
+          const actualHeight = (actualWidth / (block.naturalWidth || 700)) * imageHeights.current[i];
+          setWindowHeights(prev => ({ ...prev, [i]: actualHeight * 1.3 }));
+        }
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [work]);
 
   // Проверяем состояние refs после рендера
@@ -104,15 +130,20 @@ const WorkReader = ({ work, onBack }) => {
       let found = null;
       
       const imageBlocks = work.blocks.filter(block => block.type === 'image');
+      console.log('🔍 Обработка скролла - imageBlocks:', imageBlocks.length);
       
       // Проверяем, что все refs готовы
       const allRefsReady = imageBlocks.every((block, blockIndex) => {
         const globalIndex = work.blocks.findIndex(b => b === block);
         const ref = windowRefs.current[globalIndex];
+        console.log(`🔍 Блок ${globalIndex} (${block.imageFile}) - ref готов:`, ref !== null);
         return ref !== null;
       });
       
+      console.log('🔍 Все refs готовы:', allRefsReady);
+      
       if (!allRefsReady) {
+        console.log('❌ Не все refs готовы, выходим');
         return;
       }
       
@@ -123,20 +154,48 @@ const WorkReader = ({ work, onBack }) => {
         const ref = windowRefs.current[globalIndex];
         
         if (!ref) {
+          console.log(`❌ Нет ref для блока ${globalIndex}`);
           return;
         }
         
         const rect = ref.getBoundingClientRect();
         const activationZone = viewportHeight; // 100% от высоты viewport
         
+        console.log(`🔍 Блок ${globalIndex} (${block.imageFile}):`, {
+          rectTop: rect.top,
+          rectBottom: rect.bottom,
+          viewportHeight,
+          activationZone,
+          isInActivationZone: rect.top <= viewportHeight + activationZone && rect.bottom >= 0
+        });
+        
         // Окно активируется, когда его верхняя граница находится в пределах 100% ниже viewport
         // и деактивируется, когда оно уходит выше этой зоны
         const isInActivationZone = rect.top <= viewportHeight + activationZone && rect.bottom >= 0;
         
         if (isInActivationZone) {
-          found = globalIndex;
+          console.log(`✅ Блок ${globalIndex} (${block.imageFile}) в зоне активации`);
+          // Если окно в зоне активации, выбираем его
+          // Если уже есть активное окно, выбираем то, которое ближе к центру viewport
+          if (found === null) {
+            found = globalIndex;
+            console.log(`🎯 Устанавливаем активный блок: ${globalIndex} (${block.imageFile})`);
+          } else {
+            const currentRect = windowRefs.current[found].getBoundingClientRect();
+            const currentDist = Math.abs((currentRect.top + currentRect.bottom) / 2 - viewportHeight / 2);
+            const newDist = Math.abs((rect.top + rect.bottom) / 2 - viewportHeight / 2);
+            
+            console.log(`🔍 Сравнение: текущий ${found} (dist: ${currentDist}) vs новый ${globalIndex} (dist: ${newDist})`);
+            
+            if (newDist < currentDist) {
+              found = globalIndex;
+              console.log(`🎯 Меняем активный блок на: ${globalIndex} (${block.imageFile})`);
+            }
+          }
         }
       });
+      
+      console.log('🔍 Найденный блок:', found);
       
       if (found !== null && work.blocks[found]?.type === 'image') {
         const newActiveImage = {
@@ -144,8 +203,10 @@ const WorkReader = ({ work, onBack }) => {
           idx: found,
           height: imageHeights.current[found] || (scrollRef.current?.offsetWidth * 0.7) || 300
         };
+        console.log('🎯 Активная картинка:', newActiveImage.file, '(блок', found + ')');
         setActiveImage(newActiveImage);
       } else {
+        console.log('❌ Активная картинка не найдена');
         setActiveImage(null);
       }
     };
@@ -155,10 +216,12 @@ const WorkReader = ({ work, onBack }) => {
   useEffect(() => {
     // Слушаем скролл на контейнере, а не на window
     const handleScroll = () => {
+      console.log('📜 Скролл обрабатывается');
       handleScrollRef.current();
     };
     
     const scrollContainer = scrollRef.current;
+    console.log('🔧 Контейнер скролла найден:', scrollContainer !== null);
     
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
@@ -173,18 +236,9 @@ const WorkReader = ({ work, onBack }) => {
     }
   }, [work]); // Добавляем зависимость от work
 
-  // Аудио триггер при смене картинки
-  useEffect(() => {
-    if (activeImage) {
-      triggerAudio(activeImage.file);
-      updateReadingState(activeImage.idx);
-    }
-  }, [activeImage, triggerAudio, updateReadingState]);
-
-  const winHeight = window.innerHeight;
-
   return (
-    <div className={`work-reader ${theme}`}>
+    <div className="workreader-root">
+      {/* Фиксированный хедер вверху области просмотра */}
       <div 
         ref={headerEl} 
         className="workreader-header-container"

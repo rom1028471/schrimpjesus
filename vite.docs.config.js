@@ -1,21 +1,38 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { copy } from 'fs-extra'
+import { resolve } from 'path'
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    {
-      name: 'copy-works',
-      writeBundle() {
-        return copy('src/works', 'docs/works')
-          .then(() => copy('public/assets', 'docs/assets'))
-      }
+// Плагин для копирования файлов работ
+const copyWorksPlugin = () => {
+  return {
+    name: 'copy-works',
+    writeBundle() {
+      // Копируем папку works в docs
+      copy(resolve(__dirname, 'src/works'), resolve(__dirname, 'docs/works'))
+        .then(() => console.log('✅ Works files copied to docs'))
+        .catch(err => console.error('❌ Error copying works files:', err))
     }
-  ],
+  }
+}
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(), copyWorksPlugin()],
+  base: '/schrimpjesus/',
   build: {
-    outDir: 'docs'
+    outDir: 'docs',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
   },
-  base: '/schrimpjesus/'
+  server: {
+    port: 3000,
+  },
+  preview: {
+    port: 3000,
+  },
 }) 

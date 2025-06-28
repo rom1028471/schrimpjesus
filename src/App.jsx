@@ -17,11 +17,17 @@ function App() {
   };
 
   const handleSelectWork = async (workMeta) => {
+    console.log('📁 Загружаю файл:', `works/${workMeta.file}`, 'для произведения:', workMeta.title);
+    
+    // Корректный путь с учётом base
     const base = import.meta.env.DEV ? '/schrimpjesus/' : (import.meta.env.BASE_URL || '/');
     const filePath = import.meta.env.DEV ? `works/${workMeta.file}` : `${base}works/${workMeta.file}`;
     const res = await fetch(filePath);
     const md = await res.text();
     const parsed = parseWorkMd(md, workMeta);
+    console.log('📖 Парсинг завершен для', workMeta.title);
+    console.log('📖 Количество блоков:', parsed.blocks.length);
+    console.log('📖 Блоки с картинками:', parsed.blocks.filter(b => b.type === 'image').map(b => b.imageFile));
     setSelectedWork(parsed);
     setShowIntro(true);
   };
@@ -39,9 +45,12 @@ function App() {
     <ThemeProvider>
       <div className="App">
         {(() => {
+          console.log('🔧 App render - started:', started, 'selectedWork:', selectedWork?.title, 'showIntro:', showIntro);
           if (!started) {
+            console.log('🔧 Рендерим BadUIGate');
             return <BadUIGate onComplete={handleCompleteGate} />;
           } else if (selectedWork && showIntro) {
+            console.log('🔧 Рендерим WorkIntro для:', selectedWork.title);
             return (
               <WorkIntro 
                 work={selectedWork} 
@@ -50,8 +59,10 @@ function App() {
               />
             );
           } else if (selectedWork) {
+            console.log('🔧 Рендерим WorkReader для:', selectedWork.title);
             return <WorkReader work={selectedWork} onBack={handleBackToList} />;
           } else {
+            console.log('🔧 Рендерим WorksList');
             return <WorksList works={worksMetadata.works} onSelectWork={handleSelectWork} />;
           }
         })()}
