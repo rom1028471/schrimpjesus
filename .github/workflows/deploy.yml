@@ -2,9 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ masturb ]
   pull_request:
-    branches: [ main ]
+    branches: [ masturb ]
 
 jobs:
   build-and-deploy:
@@ -24,11 +24,11 @@ jobs:
       run: npm ci
       
     - name: Build
-      run: npm run build
+      run: npm run build:docs
       
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/masturb'
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
+        publish_dir: ./docs
