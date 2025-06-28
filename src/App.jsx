@@ -3,7 +3,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import WorksList from './components/WorksList/WorksList';
 import WorkReader from './components/WorkReader/WorkReader';
 import WorkIntro from './components/WorkIntro/WorkIntro';
-import './App.css';
 
 function App() {
   const [selectedWork, setSelectedWork] = useState(null);

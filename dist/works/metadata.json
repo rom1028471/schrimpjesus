@@ -9,6 +9,16 @@
       "readingTime": "12 мин",
       "coverImage": "cover1.jpg",
       "file": "digital-dreams.md"
+    },
+    {
+      "id": 2,
+      "title": "Флэшфорвард",
+      "author": "SchrimpJesus",
+      "genre": "Приключения",
+      "description": "Безумное путешествие в Аргентину за креветками и приключениями",
+      "readingTime": "25 мин",
+      "coverImage": "belogradchik.jpg",
+      "file": "story1.md"
     }
   ]
 }
