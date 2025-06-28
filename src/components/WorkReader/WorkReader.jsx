@@ -8,7 +8,7 @@ const MAX_WIDTH = 900;
 // Глобальная переменная для отслеживания состояния обработчика скролла
 let scrollListenerAdded = false;
 
-const WorkReader = ({ work, onBack }) => {
+const WorkReader = ({ work, onBack, initialScrollPosition = 0, onScrollChange }) => {
   if (!work || !work.blocks) return null;
   const [headerVisible, setHeaderVisible] = useState(true);
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
@@ -19,6 +19,45 @@ const WorkReader = ({ work, onBack }) => {
   const base = import.meta.env.BASE_URL || '/';
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerEl = useRef(null);
+  const scrollRestored = useRef(false);
+
+  // Восстанавливаем позицию скролла при загрузке
+  useEffect(() => {
+    if (initialScrollPosition > 0 && !scrollRestored.current) {
+      const timer = setTimeout(() => {
+        if (scrollRef.current) {
+          window.scrollTo(0, initialScrollPosition);
+          scrollRestored.current = true;
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [initialScrollPosition, windowHeights]);
+
+  // Сохраняем позицию скролла при изменении
+  useEffect(() => {
+    if (!onScrollChange) return;
+
+    const handleScrollSave = () => {
+      const scrollPosition = window.scrollY;
+      onScrollChange(scrollPosition);
+    };
+
+    // Используем throttling для оптимизации
+    let ticking = false;
+    const throttledScrollSave = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScrollSave();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', throttledScrollSave, { passive: true });
+    return () => window.removeEventListener('scroll', throttledScrollSave);
+  }, [onScrollChange]);
 
   // Считаем высоту хедера для отступа картинки
   useEffect(() => {
