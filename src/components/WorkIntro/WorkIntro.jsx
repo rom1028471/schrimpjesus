@@ -169,7 +169,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
               <div className="media-progress-fill" style={{ width: `${percent}%` }} />
             </div>
             <div className="media-progress-info">
-              <span className="spinner" aria-hidden="true"></span>
+              <span className={`spinner ${percent >= 100 ? 'paused' : ''}`} aria-hidden="true"></span>
               <span className="percent-text">{percent}%</span>
             </div>
           </div>
