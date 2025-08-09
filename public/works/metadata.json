@@ -1,0 +1,14 @@
+{
+  "works": [
+    {
+      "id": 1,
+      "title": "Шримп Холе",
+      "author": "Леставикс",
+      "genre": "Приключения, групповое",
+      "description": "Безумное путешествие",
+      "readingTime": "70 мин",
+      "coverImage": "belogradchik.jpg",
+      "file": "story1.md"
+    }
+  ]
+}
