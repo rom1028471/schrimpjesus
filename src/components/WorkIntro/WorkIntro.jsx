@@ -4,6 +4,7 @@ import './WorkIntro.css';
 const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   const [currentLine, setCurrentLine] = useState(-1);
   const [showButton, setShowButton] = useState(false);
+  const [showReadingStats, setShowReadingStats] = useState(false);
   const [showDownloadHint, setShowDownloadHint] = useState(false);
   const [showDownloadBtn, setShowDownloadBtn] = useState(false);
 
@@ -40,22 +41,31 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         setPreloadDone(true);
         return;
       }
-      let loaded = 0;
-      for (const url of mediaUrls) {
+      
+      // Создаём массив промисов для параллельной загрузки
+      const promises = mediaUrls.map(async (url, index) => {
         try {
           const res = await fetch(url, { signal: controller.signal, cache: 'force-cache' });
-          // Полностью читаем тело, чтобы гарантировать загрузку в кэш
-          // Даже если контент уже в кэше, blob() вернёт сразу
           await res.blob();
+          return index; // Возвращаем индекс успешно загруженного файла
         } catch (e) {
           if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
-          // Не блокируем чтение из-за единичного сбоя
-        } finally {
-          if (aborted) return;
-          loaded += 1;
-          setPreloadProgress(loaded / mediaUrls.length);
+          return index; // Считаем как загруженный даже при ошибке
         }
+      });
+
+      // Обрабатываем результаты по мере завершения
+      let completed = 0;
+      const total = mediaUrls.length;
+      
+      for (const promise of promises) {
+        if (aborted) return;
+        await promise;
+        completed += 1;
+        // Обновляем прогресс с плавным переходом
+        setPreloadProgress(completed / total);
       }
+      
       if (!aborted) setPreloadDone(true);
     };
 
@@ -91,18 +101,25 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     return () => clearTimeout(timer);
   }, [currentLine, introLines.length, showButton]);
 
-  // Плавное появление текста и кнопки скачивания PDF после кнопки 'читать'
+  // Плавное появление элементов после кнопки 'читать'
   useEffect(() => {
-    if (showButton && !showDownloadHint) {
-      const t1 = setTimeout(() => setShowDownloadHint(true), 1200);
+    if (showButton && !showReadingStats) {
+      const t1 = setTimeout(() => setShowReadingStats(true), 800);
       return () => clearTimeout(t1);
     }
-  }, [showButton, showDownloadHint]);
+  }, [showButton, showReadingStats]);
+
+  useEffect(() => {
+    if (showReadingStats && !showDownloadHint) {
+      const t2 = setTimeout(() => setShowDownloadHint(true), 1000);
+      return () => clearTimeout(t2);
+    }
+  }, [showReadingStats, showDownloadHint]);
 
   useEffect(() => {
     if (showDownloadHint && !showDownloadBtn) {
-      const t2 = setTimeout(() => setShowDownloadBtn(true), 1200);
-      return () => clearTimeout(t2);
+      const t3 = setTimeout(() => setShowDownloadBtn(true), 1200);
+      return () => clearTimeout(t3);
     }
   }, [showDownloadHint, showDownloadBtn]);
 
@@ -173,7 +190,10 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
               <span className="percent-text">{percent}%</span>
             </div>
           </div>
-          
+        </div>
+
+        {/* Статистика чтения - появляется отдельно */}
+        <div className={`reading-stats-wrapper ${showReadingStats ? 'visible' : ''}`}>
           <div className="reading-stats">
             <span className="stat">
               ⏱️ {work.readingTime || '15 мин'}

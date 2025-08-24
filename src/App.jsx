@@ -5,6 +5,7 @@ import WorkReader from './components/WorkReader/WorkReader';
 import WorkIntro from './components/WorkIntro/WorkIntro';
 import { parseWorkMd } from './utils/parseWorkMd';
 import { SoundProvider } from './contexts/SoundContext';
+import { FontSizeProvider } from './contexts/FontSizeContext';
 
 function App() {
   const [selectedWork, setSelectedWork] = useState(null);
@@ -63,6 +64,7 @@ function App() {
   return (
     <SoundProvider>
     <ThemeProvider>
+    <FontSizeProvider>
       <div className="App">
         {(() => {
           if (import.meta.env.DEV) {
@@ -87,6 +89,7 @@ function App() {
           }
         })()}
       </div>
+    </FontSizeProvider>
     </ThemeProvider>
     </SoundProvider>
   );

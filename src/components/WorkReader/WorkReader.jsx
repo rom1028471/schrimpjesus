@@ -20,6 +20,7 @@ const WorkReader = ({ work, onBack }) => {
   const [headerVisible, setHeaderVisible] = useState(true);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [musicPatchRects, setMusicPatchRects] = useState([]);
+  const [debugMode, setDebugMode] = useState(false); // Отладочный режим
 
   // Предрасчёт индексов блоков по типам для быстрых проходов
   const imageBlockIndices = useMemo(() => {
@@ -444,6 +445,30 @@ const WorkReader = ({ work, onBack }) => {
           onBack={onBack}
           showVolumeControl={true}
         >
+          {/* Кнопка отладки */}
+          <button
+            onClick={() => setDebugMode(!debugMode)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '50%',
+              width: '27px',
+              height: '27px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: debugMode ? '#ff6b6b' : 'inherit',
+              cursor: 'pointer',
+              fontSize: '12px',
+              transition: 'all 0.2s ease',
+              backdropFilter: 'blur(10px)',
+              marginLeft: '6px'
+            }}
+            title={debugMode ? 'Отключить отладку' : 'Включить отладку'}
+          >
+            🐛
+          </button>
+          
           {headerVisible && (
             isMobile ? (
               <button className="hide-header-button" onClick={() => setHeaderVisible(false)}>
@@ -503,30 +528,93 @@ const WorkReader = ({ work, onBack }) => {
           height: headerVisible ? `calc(100vh - ${headerHeight}px)` : '100vh'
         }}
       >
-        {/* Патчи для аудиомаркеров */}
+              {/* Патчи для аудиомаркеров */}
+      <Portal>
+        {musicPatchRects.map((rect, idx) => (
+          <div
+            key={idx}
+            style={{
+              position: 'absolute',
+              top: rect.top,
+              left: rect.left,
+              width: '2px',
+              height: '1em',
+              background: 'var(--bg-color, #23233a)',
+              pointerEvents: 'none',
+              zIndex: 10,
+              opacity: 1,
+              borderRadius: '1px',
+              boxSizing: 'border-box',
+              transition: 'background 0.3s',
+              willChange: 'top,left'
+            }}
+            aria-hidden="true"
+          />
+        ))}
+      </Portal>
+
+      {/* Отладочные прямоугольники */}
+      {debugMode && (
         <Portal>
-          {musicPatchRects.map((rect, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: 'absolute',
-                top: rect.top,
-                left: rect.left,
-                width: '2px',
-                height: '1em',
-                background: 'var(--bg-color, #23233a)',
-                pointerEvents: 'none',
-                zIndex: 10,
-                opacity: 1,
-                borderRadius: '1px',
-                boxSizing: 'border-box',
-                transition: 'background 0.3s',
-                willChange: 'top,left'
-              }}
-              aria-hidden="true"
-            />
-          ))}
+          {/* Зона просмотра */}
+          <div
+            style={{
+              position: 'fixed',
+              top: headerVisible ? headerHeight : 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '100vw',
+              height: '100vh',
+              border: '2px solid rgba(255, 0, 0, 0.5)',
+              backgroundColor: 'rgba(255, 0, 0, 0.1)',
+              pointerEvents: 'none',
+              zIndex: 9999
+            }}
+          />
+          
+          {/* Центр зоны просмотра */}
+          <div
+            style={{
+              position: 'fixed',
+              top: `calc(${headerVisible ? headerHeight : 0}px + 50vh)`,
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '20px',
+              height: '20px',
+              border: '2px solid rgba(0, 255, 0, 0.8)',
+              backgroundColor: 'rgba(0, 255, 0, 0.3)',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              zIndex: 10000
+            }}
+          />
+          
+          {/* Музыкальные зоны */}
+          {musicPatchRects.map((rect, idx) => {
+            const musicBlock = work.blocks[musicBlockIndices[idx]];
+            const radius = musicBlock?.radius || DEFAULT_MUSIC_RADIUS;
+            const radiusPx = radius * (scrollRef.current?.offsetWidth || 900);
+            
+            return (
+              <div
+                key={`debug-music-${idx}`}
+                style={{
+                  position: 'absolute',
+                  top: rect.top - radiusPx,
+                  left: rect.left - radiusPx,
+                  width: radiusPx * 2,
+                  height: radiusPx * 2,
+                  border: '2px solid rgba(0, 0, 255, 0.6)',
+                  backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                  borderRadius: '50%',
+                  pointerEvents: 'none',
+                  zIndex: 9998
+                }}
+              />
+            );
+          })}
         </Portal>
+      )}
         {work.blocks.map((block, i) => {
           if (block.type === 'text') {
             return (

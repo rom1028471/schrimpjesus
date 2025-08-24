@@ -215,6 +215,19 @@
   filter: grayscale(0.2);
 }
 
+.reading-stats-wrapper {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.8s ease;
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.reading-stats-wrapper.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .reading-stats {
   display: flex;
   flex-wrap: wrap;

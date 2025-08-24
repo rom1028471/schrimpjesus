@@ -5,6 +5,7 @@ import { useRef, useState, useEffect } from 'react';
 let isTouchingVolumeSlider = false;
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSound } from '../../contexts/SoundContext';
+import { useFontSize } from '../../contexts/FontSizeContext';
 import Portal from '../Portal.jsx';
 
 const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, children, showVolumeControl = false }) => {
@@ -14,6 +15,10 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeSliderRef = useRef(null);
   const volumeBtnRef = useRef(null);
+  const { fontSize, increaseFontSize, decreaseFontSize, getFontSizePercent } = useFontSize();
+  const [showFontSlider, setShowFontSlider] = useState(false);
+  const fontSliderRef = useRef(null);
+  const fontBtnRef = useRef(null);
 
   // Навешиваем нативный touchmove с passive: false для блокировки скролла
   useEffect(() => {
@@ -34,35 +39,40 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
     };
   }, [showVolumeSlider]);
 
-  // Закрытие слайдера при клике вне его
+  // Закрытие слайдеров при клике вне их
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Не закрывать, если клик по кнопке громкости
+      // Не закрывать, если клик по кнопкам
       if (volumeBtnRef.current && volumeBtnRef.current.contains(event.target)) return;
+      if (fontBtnRef.current && fontBtnRef.current.contains(event.target)) return;
+      
       if (volumeSliderRef.current && !volumeSliderRef.current.contains(event.target)) {
         setShowVolumeSlider(false);
       }
+      if (fontSliderRef.current && !fontSliderRef.current.contains(event.target)) {
+        setShowFontSlider(false);
+      }
     };
 
-    if (showVolumeSlider) {
+    if (showVolumeSlider || showFontSlider) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showVolumeSlider]);
+  }, [showVolumeSlider, showFontSlider]);
 
-  // Общий стиль для кнопок
+  // Общий стиль для кнопок (уменьшены на 25%)
   const buttonStyle = {
     background: 'rgba(255, 255, 255, 0.1)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '50%',
-    width: '36px',
-    height: '36px',
+    width: '27px',
+    height: '27px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     color: 'inherit',
     cursor: 'pointer',
-    fontSize: '16px',
+    fontSize: '12px',
     transition: 'all 0.2s ease',
     backdropFilter: 'blur(10px)'
   };
@@ -145,14 +155,14 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                   🎚️
                 </button>
                 
-                {/* Вертикальный слайдер */}
+                {/* Вертикальный слайдер громкости */}
                 <Portal>
                 {showVolumeSlider && (
                   <div 
                     className="vertical-volume-slider"
                     style={{
                       position: 'fixed',
-                      top: '100px', // чуть ниже хедера
+                      top: '100px',
                       right: '40px',
                       background: 'var(--bg-color)',
                       border: '1px solid var(--border-color)',
@@ -191,6 +201,100 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                     <span style={{ fontSize: '12px', marginTop: '8px', color: 'var(--text-color)' }}>
                       {Math.round(volume * 100)}%
                     </span>
+                  </div>
+                )}
+                </Portal>
+              </div>
+
+              {/* Кнопка управления размером шрифта */}
+              <div 
+                className="font-control-container" 
+                style={{ position: 'relative' }}
+                ref={fontSliderRef}
+              >
+                <button
+                  className="font-control-btn"
+                  aria-label="Настройка размера шрифта"
+                  aria-pressed={showFontSlider}
+                  ref={fontBtnRef}
+                  onClick={() => setShowFontSlider(v => !v)}
+                  style={buttonStyle}
+                  onMouseEnter={(e) => Object.assign(e.target.style, buttonHoverStyle)}
+                  onMouseLeave={(e) => Object.assign(e.target.style, buttonStyle)}
+                >
+                  🔤
+                </button>
+                
+                {/* Вертикальный слайдер размера шрифта */}
+                <Portal>
+                {showFontSlider && (
+                  <div 
+                    className="vertical-font-slider"
+                    style={{
+                      position: 'fixed',
+                      top: '100px',
+                      right: '80px',
+                      background: 'var(--bg-color)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      padding: '12px 8px',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
+                      zIndex: 2147483647,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      minHeight: '140px',
+                      minWidth: '44px',
+                      marginTop: 0
+                    }}
+                    ref={fontSliderRef}
+                  >
+                    <button
+                      onClick={increaseFontSize}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        marginBottom: '8px'
+                      }}
+                    >
+                      +
+                    </button>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      marginBottom: '8px', 
+                      color: 'var(--text-color)',
+                      textAlign: 'center',
+                      lineHeight: '1.2'
+                    }}>
+                      {fontSize.toFixed(2)}rem
+                    </span>
+                    <button
+                      onClick={decreaseFontSize}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      -
+                    </button>
                   </div>
                 )}
                 </Portal>
