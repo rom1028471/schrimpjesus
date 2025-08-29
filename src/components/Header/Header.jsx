@@ -20,6 +20,17 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
   const fontSliderRef = useRef(null);
   const fontBtnRef = useRef(null);
 
+  // Закрытие других слайдеров при открытии нового
+  const openVolumeSlider = () => {
+    setShowFontSlider(false);
+    setShowVolumeSlider(!showVolumeSlider);
+  };
+
+  const openFontSlider = () => {
+    setShowVolumeSlider(false);
+    setShowFontSlider(!showFontSlider);
+  };
+
   // Навешиваем нативный touchmove с passive: false для блокировки скролла
   useEffect(() => {
     const slider = volumeSliderRef.current?.querySelector('input[type="range"]');
@@ -125,16 +136,7 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
           {/* Показываем кнопки звука только если разрешен контроль громкости */}
           {showVolumeControl && (
             <>
-              <button
-                className="sound-toggle-btn"
-                aria-label="Вкл/Выкл звук"
-                onClick={() => setMuted(m => !m)}
-                style={buttonStyle}
-                onMouseEnter={(e) => Object.assign(e.target.style, buttonHoverStyle)}
-                onMouseLeave={(e) => Object.assign(e.target.style, buttonStyle)}
-              >
-                {muted ? '🔇' : '🔊'}
-              </button>
+
               
               {/* Кнопка для вертикального слайдера */}
               <div 
@@ -147,7 +149,7 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                   aria-label="Настройка громкости"
                   aria-pressed={showVolumeSlider}
                   ref={volumeBtnRef}
-                  onClick={() => setShowVolumeSlider(v => !v)}
+                  onClick={openVolumeSlider}
                   style={buttonStyle}
                   onMouseEnter={(e) => Object.assign(e.target.style, buttonHoverStyle)}
                   onMouseLeave={(e) => Object.assign(e.target.style, buttonStyle)}
@@ -201,6 +203,38 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                     <span style={{ fontSize: '12px', marginTop: '8px', color: 'var(--text-color)' }}>
                       {Math.round(volume * 100)}%
                     </span>
+                    
+                    {/* Кнопка вкл/выкл звука внутри слайдера */}
+                    <button
+                      className="sound-toggle-btn"
+                      aria-label="Вкл/Выкл звук"
+                      onClick={() => setMuted(m => !m)}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        marginTop: '8px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                        e.target.style.transform = 'scale(1.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                        e.target.style.transform = 'scale(1)';
+                      }}
+                    >
+                      {muted ? '🔇' : '🔊'}
+                    </button>
                   </div>
                 )}
                 </Portal>
@@ -217,7 +251,7 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                   aria-label="Настройка размера шрифта"
                   aria-pressed={showFontSlider}
                   ref={fontBtnRef}
-                  onClick={() => setShowFontSlider(v => !v)}
+                  onClick={openFontSlider}
                   style={buttonStyle}
                   onMouseEnter={(e) => Object.assign(e.target.style, buttonHoverStyle)}
                   onMouseLeave={(e) => Object.assign(e.target.style, buttonStyle)}
@@ -234,8 +268,9 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                       position: 'fixed',
                       top: '100px',
                       right: '80px',
-                      background: 'var(--bg-color)',
-                      border: '1px solid var(--border-color)',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
                       borderRadius: '12px',
                       padding: '12px 8px',
                       boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
@@ -243,6 +278,7 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
+                      justifyContent: 'space-between',
                       minHeight: '140px',
                       minWidth: '44px',
                       marginTop: 0
@@ -252,25 +288,34 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                     <button
                       onClick={increaseFontSize}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        border: 'none',
                         borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
+                        width: '28px',
+                        height: '28px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: 'inherit',
+                        color: 'white',
                         cursor: 'pointer',
-                        fontSize: '14px',
-                        marginBottom: '8px'
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = 'scale(1.1)';
+                        e.target.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = 'scale(1)';
+                        e.target.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.3)';
                       }}
                     >
                       +
                     </button>
                     <span style={{ 
-                      fontSize: '11px', 
-                      marginBottom: '8px', 
+                      fontSize: '12px', 
                       color: 'var(--text-color)',
                       textAlign: 'center',
                       lineHeight: '1.2'
@@ -280,17 +325,28 @@ const Header = ({ title, subtitle, showBack = false, onBack, isOpen = true, chil
                     <button
                       onClick={decreaseFontSize}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        border: 'none',
                         borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
+                        width: '28px',
+                        height: '28px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: 'inherit',
+                        color: 'white',
                         cursor: 'pointer',
-                        fontSize: '14px'
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = 'scale(1.1)';
+                        e.target.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = 'scale(1)';
+                        e.target.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.3)';
                       }}
                     >
                       -

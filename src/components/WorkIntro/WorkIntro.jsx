@@ -131,6 +131,27 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     onStartReading();
   };
 
+  // Очистка медиа при выходе со страницы
+  useEffect(() => {
+    return () => {
+      // Очищаем кэш медиа при выходе со страницы
+      if ('caches' in window) {
+        caches.keys().then(cacheNames => {
+          cacheNames.forEach(cacheName => {
+            if (cacheName.includes('media-cache')) {
+              caches.delete(cacheName);
+            }
+          });
+        });
+      }
+      
+      // Принудительно очищаем память браузера
+      if (window.gc) {
+        window.gc();
+      }
+    };
+  }, []);
+
   const percent = Math.round(preloadProgress * 100);
 
   return (
@@ -172,14 +193,14 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
           <button 
             className={`start-reading-button ${preloadDone ? '' : 'disabled'}`}
             onClick={handleStart}
-            disabled={!preloadDone}
-            aria-disabled={!preloadDone}
+            disabled={!preloadDone || !showButton}
+            aria-disabled={!preloadDone || !showButton}
             title={preloadDone ? 'Готово к чтению' : 'Загружается медиа...'}
           >
             <span className="button-text">Приступить к чтению</span>
             <span className="button-arrow">→</span>
           </button>
-
+          
           {/* Индикатор загрузки медиа */}
           <div className="media-preload-wrapper">
             <div className="media-progress-bar" aria-label={`Загрузка медиа: ${percent}%`}>
@@ -222,6 +243,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
             download
             target="_blank"
             rel="noopener noreferrer"
+            style={{ pointerEvents: showDownloadBtn ? 'auto' : 'none' }}
           >
             <span className="button-text">Скачать pdf-файл</span>
             <span className="button-arrow">↓</span>

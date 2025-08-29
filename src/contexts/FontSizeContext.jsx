@@ -11,26 +11,27 @@ export const useFontSize = () => {
 };
 
 export const FontSizeProvider = ({ children }) => {
-  const [fontSize, setFontSize] = useState(1.02); // Текущий размер шрифта в rem
-  
   const MIN_FONT_SIZE = 0.9;
   const MAX_FONT_SIZE = 1.5;
   const FONT_STEP = 0.05;
 
-  useEffect(() => {
-    // Загружаем сохраненный размер шрифта
+  // Инициализируем с сохраненным значением или дефолтным
+  const getInitialFontSize = () => {
     const savedFontSize = localStorage.getItem('fontSize');
     if (savedFontSize) {
       const size = parseFloat(savedFontSize);
       if (size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE) {
-        setFontSize(size);
+        return size;
       }
     }
-  }, []);
+    return 1.02; // Дефолтное значение
+  };
+
+  const [fontSize, setFontSize] = useState(getInitialFontSize);
 
   useEffect(() => {
     // Применяем размер шрифта к документу
-    document.documentElement.style.setProperty('--font-size', `${fontSize}rem`);
+    document.documentElement.style.setProperty('--font-size', fontSize.toString());
     localStorage.setItem('fontSize', fontSize.toString());
   }, [fontSize]);
 

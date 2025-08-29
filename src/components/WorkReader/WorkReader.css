@@ -120,7 +120,7 @@
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior-y: contain; /* Предотвращаем прокрутку родителя */
-  font-size: calc(1.18rem * var(--font-size, 1));
+  font-size: calc(1.18rem * var(--font-size, 1.02));
   line-height: 1.7;
   color: var(--text-color, #f7f7f7);
   transition: background 0.3s;
@@ -175,11 +175,11 @@
   }
   .workreader-scroll {
     padding: 0 !important;
-    font-size: calc(1.04rem * var(--font-size, 1));
+    font-size: calc(1.04rem * var(--font-size, 1.02));
   }
   .workreader-block {
     padding: 0.8em 6vw;
-    font-size: calc(1.02rem * var(--font-size, 1));
+    font-size: calc(1.02rem * var(--font-size, 1.02));
     border-radius: 0;
     width: 100%;
     box-sizing: border-box;

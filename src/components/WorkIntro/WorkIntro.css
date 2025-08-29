@@ -26,6 +26,13 @@
   filter: blur(1px);
 }
 
+[data-theme="light"] .floating-orb {
+  opacity: 0.4;
+  background: linear-gradient(45deg, rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.6));
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.3);
+  filter: blur(0.5px);
+}
+
 .orb-1 {
   width: 200px;
   height: 200px;
@@ -78,9 +85,21 @@
   z-index: 10;
 }
 
+[data-theme="light"] .intro-back-button {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  border: 1px solid #0d9488;
+  color: white;
+}
+
 .intro-back-button:hover {
   background: rgba(99, 102, 241, 0.2);
   border-color: var(--primary-blue);
+  transform: translateX(-5px);
+}
+
+[data-theme="light"] .intro-back-button:hover {
+  background: linear-gradient(135deg, #0f766e, #115e59);
+  border-color: #0f766e;
   transform: translateX(-5px);
 }
 
@@ -154,11 +173,13 @@
   transform: translateY(20px);
   transition: all 1s ease;
   text-align: center;
+  pointer-events: none;
 }
 
 .intro-action.visible {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .start-reading-button {

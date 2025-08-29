@@ -3,6 +3,7 @@
   font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
   line-height: 1.6;
   font-weight: 400;
+  --font-size: 1; /* Базовая переменная для размера шрифта */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

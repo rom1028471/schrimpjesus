@@ -103,11 +103,25 @@
 .work-genre {
   font-size: 0.8em;
   color: var(--secondary-purple);
+  font-style: italic;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 15px;
+  padding: 0.3rem 0.8rem;
+  display: inline-block;
+  margin: 0.5rem 0;
 }
 
 .work-description {
   font-size: 0.9em;
   margin: 0.5rem 0 1rem;
+  font-style: italic;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 15px;
+  padding: 0.3rem 0.8rem;
+  display: inline-block;
+  line-height: 1.4;
 }
 
 .work-stats {
@@ -153,6 +167,15 @@
 
 .placeholder {
   background: linear-gradient(45deg, var(--bg-secondary), var(--bg-primary));
+  color: #999;
+}
+
+.placeholder .work-description {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+  font-style: italic;
   color: #999;
 }
 
