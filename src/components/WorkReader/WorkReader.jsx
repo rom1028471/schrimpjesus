@@ -3,7 +3,6 @@ import useLockBodyScroll from '../../hooks/useLockBodyScroll';
 import Header from '../Header/Header';
 import './WorkReader.css';
 import { useSound } from '../../contexts/SoundContext';
-import Portal from '../Portal.jsx';
 
 const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
@@ -19,7 +18,7 @@ const WorkReader = ({ work, onBack }) => {
   const scrollRef = useRef(null);
   const [headerVisible, setHeaderVisible] = useState(true);
   const [headerHeight, setHeaderHeight] = useState(0);
-  const [musicPatchRects, setMusicPatchRects] = useState([]);
+  const [musicDebugBands, setMusicDebugBands] = useState([]);
   const [debugMode, setDebugMode] = useState(false); // Отладочный режим
 
   // Предрасчёт индексов блоков по типам для быстрых проходов
@@ -37,49 +36,67 @@ const WorkReader = ({ work, onBack }) => {
     return result;
   }, [work]);
 
-  // Патчи для аудиомаркеров
+  // Debug: рассчитываем полосы активации аудио внутри скролл-контейнера (во всю ширину контейнера)
   useEffect(() => {
-    if (!scrollRef.current || !work?.blocks) return;
-    const rects = [];
+    const container = scrollRef.current;
+    if (!container || !work?.blocks) return;
+    const containerRect = container.getBoundingClientRect();
+    const clientH = container.clientHeight;
+    const scrollTop = container.scrollTop;
+    const bands = [];
     for (const i of musicBlockIndices) {
-      if (musicRefs.current[i]) {
-        const el = musicRefs.current[i];
-        const r = el.getBoundingClientRect();
-        const scrollRect = scrollRef.current.getBoundingClientRect();
-        rects.push({
-          top: r.top - scrollRect.top + scrollRef.current.scrollTop,
-          left: r.left - scrollRect.left + scrollRef.current.scrollLeft,
-        });
+      const el = musicRefs.current[i];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const centerViewportY = (r.top + r.bottom) / 2;
+      const centerInContainer = centerViewportY - containerRect.top + scrollTop;
+      const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
+      const activationZone = clientH * radius;
+      const top = centerInContainer - activationZone;
+      const height = activationZone * 2;
+      // Рендерим только те полосы, которые пересекают видимую область контейнера
+      if (top <= scrollTop + clientH && top + height >= scrollTop) {
+        bands.push({ top, height });
       }
     }
-    setMusicPatchRects(rects);
-  }, [work, musicBlockIndices, musicRefs.current, scrollRef.current, headerVisible, headerHeight]);
+    setMusicDebugBands(bands);
+  }, [work, musicBlockIndices, headerVisible, headerHeight]);
 
-  // Обновлять патчи при ресайзе/скролле
+  // Обновляем полосы при ресайзе и скролле контейнера
   useEffect(() => {
-    const update = () => {
-      if (!scrollRef.current || !work?.blocks) return;
-      const rects = [];
+    const container = scrollRef.current;
+    if (!container) return;
+    const updateBands = () => {
+      const containerRect = container.getBoundingClientRect();
+      const clientH = container.clientHeight;
+      const scrollTop = container.scrollTop;
+      const bands = [];
       for (const i of musicBlockIndices) {
-        if (musicRefs.current[i]) {
-          const el = musicRefs.current[i];
-          const r = el.getBoundingClientRect();
-          const scrollRect = scrollRef.current.getBoundingClientRect();
-          rects.push({
-            top: r.top - scrollRect.top + scrollRef.current.scrollTop,
-            left: r.left - scrollRect.left + scrollRef.current.scrollLeft,
-          });
+        const el = musicRefs.current[i];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const centerViewportY = (r.top + r.bottom) / 2;
+        const centerInContainer = centerViewportY - containerRect.top + scrollTop;
+        const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
+        const activationZone = clientH * radius;
+        const top = centerInContainer - activationZone;
+        const height = activationZone * 2;
+        if (top <= scrollTop + clientH && top + height >= scrollTop) {
+          bands.push({ top, height });
         }
       }
-      setMusicPatchRects(rects);
+      setMusicDebugBands(bands);
     };
-    window.addEventListener('resize', update);
-    if (scrollRef.current) scrollRef.current.addEventListener('scroll', update);
+    const onResize = () => updateBands();
+    window.addEventListener('resize', onResize);
+    container.addEventListener('scroll', updateBands, { passive: true });
+    // первый прогон
+    setTimeout(updateBands, 50);
     return () => {
-      window.removeEventListener('resize', update);
-      if (scrollRef.current) scrollRef.current.removeEventListener('scroll', update);
+      window.removeEventListener('resize', onResize);
+      container.removeEventListener('scroll', updateBands);
     };
-  }, [work, musicBlockIndices, musicRefs.current, scrollRef.current]);
+  }, [work, musicBlockIndices, headerVisible, headerHeight]);
   if (!work || !work.blocks) return null;
   
   const [activeImage, setActiveImage] = useState(null); // {file, idx, height}
@@ -99,6 +116,8 @@ const WorkReader = ({ work, onBack }) => {
   const { muted, volume } = useSound();
   const previousMusicFileRef = useRef(null);
   const currentActiveRef = useRef(null); // стабилизация активного трека
+
+  // Viewport-фиксированные debug-оверлеи удалены. В отладке рисуем только аудио-полосы внутри скролл-контейнера.
 
   // helper
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -135,19 +154,27 @@ const WorkReader = ({ work, onBack }) => {
           const containerWidth = scrollRef.current?.offsetWidth || window.innerWidth;
           const maxWidth = Math.min(MAX_WIDTH, containerWidth);
           const actualWidth = Math.min(img.naturalWidth, maxWidth);
-          const actualHeight = (actualWidth / img.naturalWidth) * img.naturalHeight;
-          const windowHeight = actualHeight * 1.3;
-        if (import.meta.env.DEV) {
-          console.log(`📏 Блок ${i} (${block.imageFile}):`, {
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            containerWidth,
-            maxWidth,
-            actualWidth,
-            actualHeight,
-            windowHeight
-          });
-        }
+          let actualHeight = (actualWidth / img.naturalWidth) * img.naturalHeight;
+          
+          // Ограничиваем максимальную высоту до 75% от высоты экрана
+          const maxHeight = window.innerHeight * 0.75;
+          if (actualHeight > maxHeight) {
+            actualHeight = maxHeight;
+          }
+          
+          // Адаптивный множитель на основе высоты изображения
+          let multiplier;
+          if (actualHeight > 600) {        // Очень высокие изображения
+            multiplier = 1.05;
+          } else if (actualHeight > 400) {  // Высокие изображения
+            multiplier = 1.1;
+          } else if (actualHeight > 200) {  // Средние изображения
+            multiplier = 1.3;
+          } else {                          // Низкие изображения
+            multiplier = 2.5; // Увеличен для ПК
+          }
+          
+          const windowHeight = actualHeight * multiplier;
           setWindowHeights(prev => ({ ...prev, [i]: windowHeight }));
         };
         img.onerror = () => {
@@ -165,8 +192,27 @@ const WorkReader = ({ work, onBack }) => {
           const maxWidth = Math.min(MAX_WIDTH, containerWidth);
           const naturalWidth = work.blocks[i].naturalWidth || 700;
           const actualWidth = Math.min(naturalWidth, maxWidth);
-          const actualHeight = (actualWidth / naturalWidth) * imageHeights.current[i];
-          setWindowHeights(prev => ({ ...prev, [i]: actualHeight * 1.3 }));
+          let actualHeight = (actualWidth / naturalWidth) * imageHeights.current[i];
+          
+          // Ограничиваем максимальную высоту до 75% от высоты экрана
+          const maxHeight = window.innerHeight * 0.75;
+          if (actualHeight > maxHeight) {
+            actualHeight = maxHeight;
+          }
+          
+          // Адаптивный множитель на основе высоты изображения
+          let multiplier;
+          if (actualHeight > 600) {        // Очень высокие изображения
+            multiplier = 1.05;
+          } else if (actualHeight > 400) {  // Высокие изображения
+            multiplier = 1.1;
+          } else if (actualHeight > 200) {  // Средние изображения
+            multiplier = 1.3;
+          } else {                          // Низкие изображения
+            multiplier = 2.5; // Увеличен для ПК
+          }
+          
+          setWindowHeights(prev => ({ ...prev, [i]: actualHeight * multiplier }));
         }
       }
     };
@@ -185,7 +231,7 @@ const WorkReader = ({ work, onBack }) => {
     let lastDistsLog = 0;
     const handleMusic = () => {
       const now = Date.now();
-      if (now - lastLog.current > 1000) {
+      if (debugMode && now - lastLog.current > 1000) {
         if (scrollRef.current && import.meta.env.DEV) {
           const pos = scrollRef.current.scrollTop;
           console.log('[AUDIO] scroll pos:', pos);
@@ -194,36 +240,79 @@ const WorkReader = ({ work, onBack }) => {
       }
       if (!scrollRef.current) return;
       const viewportHeight = window.innerHeight;
+      const contentTop = headerVisible ? headerHeight : 0;
+      const contentHeight = Math.max(0, viewportHeight - contentTop);
+      const contentCenter = contentTop + contentHeight / 2;
       let found = null;
-      let foundDist = Infinity;
       const dists = [];
+      // Группируем кандидатов по имени файла и выбираем ближайшую к центру группу
+      const groups = new Map(); // musicFile -> [{ idx, dist, radius }]
       for (const i of musicBlockIndices) {
-          const ref = musicRefs.current[i];
+        const ref = musicRefs.current[i];
         if (!ref) continue;
-          const rect = ref.getBoundingClientRect();
-          const center = (rect.top + rect.bottom) / 2;
-          const dist = Math.abs(center - viewportHeight / 2);
+        const rect = ref.getBoundingClientRect();
+        const center = (rect.top + rect.bottom) / 2;
+        const dist = Math.abs(center - contentCenter);
         const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
-          const activationZone = viewportHeight * radius;
-        dists.push({ file: work.blocks[i].musicFile, dist, activationZone });
-          if (center >= 0 && center <= viewportHeight) {
-            if (dist < foundDist && dist < activationZone) {
-            found = { musicFile: work.blocks[i].musicFile, idx: i, radius };
-              foundDist = dist;
-            }
-          }
+        const activationZone = contentHeight * radius;
+        if (debugMode) dists.push({ file: work.blocks[i].musicFile, dist, activationZone });
+        if (center >= contentTop && center <= contentTop + contentHeight && dist < activationZone) {
+          const file = work.blocks[i].musicFile;
+          if (!groups.has(file)) groups.set(file, []);
+          groups.get(file).push({ idx: i, dist, radius });
         }
-      if (dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
+      }
+      if (debugMode && dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
         console.log('[AUDIO] dists:', dists);
         lastDistsLog = now;
       }
+      if (groups.size) {
+        let bestGroup = null;
+        let minGroupDist = Infinity;
 
-      // Стабилизация: не обновляем state, если трек не изменился
+        for (const [file, candidates] of groups.entries()) {
+          // Находим минимальную дистанцию для каждой группы
+          const groupMinDist = Math.min(...candidates.map(c => c.dist));
+          if (groupMinDist < minGroupDist) {
+            minGroupDist = groupMinDist;
+            bestGroup = { file, candidates };
+          }
+        }
+
+        if (bestGroup) {
+          // Внутри лучшей группы выбираем ближайшего кандидата для `idx`
+          const bestCandidate = bestGroup.candidates.reduce((best, current) => 
+            current.dist < best.dist ? current : best
+          );
+          found = { musicFile: bestGroup.file, idx: bestCandidate.idx, radius: bestCandidate.radius };
+        }
+      }
+
       const prev = currentActiveRef.current;
-      if (
-        (prev?.musicFile || null) === (found?.musicFile || null) &&
-        (prev?.idx ?? null) === (found?.idx ?? null)
-      ) {
+
+      // Гистерезис: если новый активный трек не найден, но предыдущий все еще в зоне активации — оставляем его
+      if (!found && prev && prev.musicFile) {
+        const prevGroupCandidates = [];
+        for (let i = 0; i < work.blocks.length; i++) {
+          if (work.blocks[i].musicFile === prev.musicFile && musicRefs.current[i]) {
+            const r = musicRefs.current[i].getBoundingClientRect();
+            const center = (r.top + r.bottom) / 2;
+            const dist = Math.abs(center - contentCenter);
+            const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
+            const activationZone = contentHeight * radius;
+            // Проверяем, находится ли хоть одна из под-зон старого трека в расширенной зоне активации
+            if (center >= contentTop && center <= contentTop + contentHeight && dist < activationZone * 1.25) {
+              prevGroupCandidates.push({ dist });
+            }
+          }
+        }
+        if (prevGroupCandidates.length > 0) {
+          found = prev; // Удерживаем трек активным
+        }
+      }
+
+      // Не обновляем state, если трек не изменился
+      if ((prev?.musicFile || null) === (found?.musicFile || null)) {
         return;
       }
       currentActiveRef.current = found;
@@ -234,7 +323,7 @@ const WorkReader = ({ work, onBack }) => {
     scrollContainer.addEventListener('scroll', handleMusic, { passive: true });
     setTimeout(handleMusic, 100);
     return () => scrollContainer.removeEventListener('scroll', handleMusic);
-  }, [work, musicBlockIndices]);
+  }, [work, musicBlockIndices, headerVisible, headerHeight, debugMode]);
 
   // --- MUSIC: основной контроль аудио ---
   useEffect(() => {
@@ -248,14 +337,14 @@ const WorkReader = ({ work, onBack }) => {
       if (audioRef.current.src && audioRef.current.src.endsWith(previousFile)) {
         lastPauseTime.current[previousFile] = Date.now();
         lastPositions.current[previousFile] = audioRef.current.currentTime;
-        if (import.meta.env.DEV) console.log('[AUDIO] saving position on switch:', audioRef.current.currentTime, 'for', previousFile);
+        if (import.meta.env.DEV && debugMode) console.log('[AUDIO] saving position on switch:', audioRef.current.currentTime, 'for', previousFile);
       }
     }
 
     // Если выходим из зоны - сохраняем позицию и останавливаем
     if (!activeMusic || !activeMusic.musicFile || muted) {
-      if (import.meta.env.DEV) console.log('[AUDIO] exiting zone, previousFile:', previousFile, 'currentFile:', currentFile);
-      if (import.meta.env.DEV) console.log('[AUDIO] audioRef.src:', audioRef.current?.src);
+      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] exiting zone, previousFile:', previousFile, 'currentFile:', currentFile);
+      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] audioRef.src:', audioRef.current?.src);
       if (previousFile && audioRef.current.src) {
         // Извлекаем имя файла из URL
         const urlFileName = audioRef.current.src.split('/').pop();
@@ -264,13 +353,13 @@ const WorkReader = ({ work, onBack }) => {
         if (decodedFileName === previousFile) {
           lastPauseTime.current[previousFile] = Date.now();
           lastPositions.current[previousFile] = audioRef.current.currentTime;
-          if (import.meta.env.DEV) console.log('[AUDIO] saving position on exit:', audioRef.current.currentTime, 'for', previousFile);
+          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] saving position on exit:', audioRef.current.currentTime, 'for', previousFile);
         } else {
-          if (import.meta.env.DEV) console.log('[AUDIO] filename mismatch, decoded:', decodedFileName, 'vs previousFile:', previousFile);
+          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] filename mismatch, decoded:', decodedFileName, 'vs previousFile:', previousFile);
           // Сохраняем позицию в любом случае
           lastPauseTime.current[previousFile] = Date.now();
           lastPositions.current[previousFile] = audioRef.current.currentTime;
-          if (import.meta.env.DEV) console.log('[AUDIO] forcing save position:', audioRef.current.currentTime, 'for', previousFile);
+          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] forcing save position:', audioRef.current.currentTime, 'for', previousFile);
         }
       }
       setFadeTarget(0);
@@ -285,7 +374,9 @@ const WorkReader = ({ work, onBack }) => {
       const decodedFileName = decodeURIComponent(urlFileName);
       
       if (decodedFileName === activeMusic.musicFile) {
+        // Для того же трека: если был на паузе (fade-out дошел до 0) — стартуем с 0 и поднимаем, иначе поднимаем с текущего уровня
         if (audioRef.current.paused) {
+          try { audioRef.current.volume = 0; } catch {}
           audioRef.current.play().catch(() => {});
         }
         setFadeTarget(1);
@@ -306,20 +397,18 @@ const WorkReader = ({ work, onBack }) => {
     const lastPause = lastPauseTime.current[activeMusic.musicFile];
     const lastPos = lastPositions.current[activeMusic.musicFile];
     
-    if (import.meta.env.DEV) console.log('[AUDIO] checking saved position for', activeMusic.musicFile, 'lastPause:', lastPause, 'lastPos:', lastPos, 'timeDiff:', lastPause ? Date.now() - lastPause : 'N/A');
+    if (import.meta.env.DEV && debugMode) console.log('[AUDIO] checking saved position for', activeMusic.musicFile, 'lastPause:', lastPause, 'lastPos:', lastPos, 'timeDiff:', lastPause ? Date.now() - lastPause : 'N/A');
     
     if (lastPause && Date.now() - lastPause < PAUSE_MEMORY && lastPos) {
-      if (import.meta.env.DEV) console.log('[AUDIO] restoring position:', lastPos, 'for', activeMusic.musicFile);
+      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] restoring position:', lastPos, 'for', activeMusic.musicFile);
       audioRef.current.currentTime = lastPos;
     } else {
-      if (import.meta.env.DEV) console.log('[AUDIO] starting from beginning for', activeMusic.musicFile);
+      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] starting from beginning for', activeMusic.musicFile);
       audioRef.current.currentTime = 0;
     }
     
-    // Для нового трека начинаем с 0 громкости, для того же трека - с текущей
-    if (previousFile !== currentFile) {
-      audioRef.current.volume = 0;
-    }
+    // Любой старт трека — с 0 громкости (даже если это тот же трек после выхода из зоны)
+    try { audioRef.current.volume = 0; } catch {}
     
     audioRef.current.play().catch(() => {});
     setFadeTarget(1);
@@ -419,21 +508,26 @@ const WorkReader = ({ work, onBack }) => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [activeMusic]);
 
-  // --- MUSIC: логирование статуса ---
+  // --- MUSIC: логирование через события аудио ---
   useEffect(() => {
-    const now = Date.now();
-    if (audioState.playing && activeMusic && activeMusic.musicFile) {
-      if (!window.__lastAudioPlayLog || now - window.__lastAudioPlayLog > 1000) {
-        if (import.meta.env.DEV) console.log('[AUDIO] play:', activeMusic.musicFile);
-        window.__lastAudioPlayLog = now;
+    if (!audioRef.current) return;
+    const onPlay = () => {
+      if (import.meta.env.DEV && debugMode) {
+        const src = audioRef.current.src?.split('/')?.pop();
+        console.log('[AUDIO] play:', decodeURIComponent(src || ''));
       }
-    } else {
-      if (!window.__lastAudioPauseLog || now - window.__lastAudioPauseLog > 1000) {
-        if (import.meta.env.DEV) console.log('[AUDIO] pause');
-        window.__lastAudioPauseLog = now;
-      }
-    }
-  }, [audioState.playing, activeMusic]);
+    };
+    const onPause = () => {
+      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] pause');
+    };
+    const el = audioRef.current;
+    el.addEventListener('play', onPlay);
+    el.addEventListener('pause', onPause);
+    return () => {
+      el.removeEventListener('play', onPlay);
+      el.removeEventListener('pause', onPause);
+    };
+  }, [debugMode]);
 
   // Создаем стабильный обработчик скролла
   const handleScrollRef = useRef();
@@ -600,68 +694,38 @@ const WorkReader = ({ work, onBack }) => {
           height: headerVisible ? `calc(100vh - ${headerHeight}px)` : '100vh'
         }}
       >
-        {/* Патчи для аудиомаркеров */}
-        <Portal>
-          {musicPatchRects.map((rect, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: 'absolute',
-                top: rect.top,
-                left: rect.left,
-                width: '2px',
-                height: '1em',
-                background: 'var(--bg-color, #23233a)',
-                pointerEvents: 'none',
-                zIndex: 10,
-                opacity: 1,
-                borderRadius: '1px',
-                boxSizing: 'border-box',
-                transition: 'background 0.3s',
-                willChange: 'top,left'
-              }}
-              aria-hidden="true"
-            />
-          ))}
-        </Portal>
+        {/* Debug: аудиозоны в скролл-контейнере, во всю ширину контейнера */}
+        {debugMode && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              pointerEvents: 'none',
+              zIndex: 5
+            }}
+          >
+            {musicDebugBands.map((b, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute',
+                  top: b.top,
+                  left: 0,
+                  right: 0,
+                  height: b.height,
+                  backgroundColor: 'rgba(0, 122, 255, 0.12)',
+                  borderTop: '1px dashed rgba(0, 122, 255, 0.6)',
+                  borderBottom: '1px dashed rgba(0, 122, 255, 0.6)'
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-      {/* Отладочные прямоугольники */}
-      {debugMode && (
-        <Portal>
-          {/* Зона просмотра */}
-          <div
-            style={{
-              position: 'fixed',
-              top: headerVisible ? headerHeight : 0,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '100vw',
-              height: '100vh',
-              border: '2px solid rgba(255, 0, 0, 0.5)',
-              backgroundColor: 'rgba(255, 0, 0, 0.1)',
-              pointerEvents: 'none',
-              zIndex: 9999
-            }}
-          />
-          
-          {/* Центр зоны просмотра */}
-          <div
-            style={{
-              position: 'fixed',
-              top: `calc(${headerVisible ? headerHeight : 0}px + 50vh)`,
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '20px',
-              height: '20px',
-              border: '2px solid rgba(0, 255, 0, 0.8)',
-              backgroundColor: 'rgba(0, 255, 0, 0.3)',
-              borderRadius: '50%',
-              pointerEvents: 'none',
-              zIndex: 10000
-            }}
-          />
-        </Portal>
-      )}
+      {/* Не подсвечиваем картинки и не рисуем viewport-оверлеи в debug-режиме — только аудио-зоны в контейнере */}
         {work.blocks.map((block, i) => {
           if (block.type === 'text') {
             return (
@@ -684,28 +748,11 @@ const WorkReader = ({ work, onBack }) => {
           if (block.type === 'music') {
             return (
               <div key={i} style={{ position: 'relative' }}>
-              <span
-                ref={el => { musicRefs.current[i] = el; }}
+                <span
+                  ref={el => { musicRefs.current[i] = el; }}
                   className="music-marker"
                   aria-hidden="true"
                 />
-                {/* Отладочная зона музыки */}
-                {debugMode && (
-                  <div
-                style={{
-                  position: 'absolute',
-                      top: '-50%',
-                      left: '-50%',
-                      width: '100%',
-                      height: '100%',
-                      border: '2px solid rgba(0, 0, 255, 0.6)',
-                      backgroundColor: 'rgba(0, 0, 255, 0.1)',
-                      borderRadius: '50%',
-                  pointerEvents: 'none',
-                      zIndex: 9998
-                }}
-              />
-                )}
               </div>
             );
           }

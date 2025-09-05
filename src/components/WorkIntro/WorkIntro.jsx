@@ -10,6 +10,10 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
 
   const [preloadProgress, setPreloadProgress] = useState(0); // 0..1
   const [preloadDone, setPreloadDone] = useState(false);
+  const [showSecondButton, setShowSecondButton] = useState(false);
+  const [showThirdButton, setShowThirdButton] = useState(false);
+  const [firstButtonClicked, setFirstButtonClicked] = useState(false);
+  const [secondButtonClicked, setSecondButtonClicked] = useState(false);
 
   // Правильный base URL для dev и production
   const base = import.meta.env.BASE_URL || '/';
@@ -84,6 +88,8 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     '',
     work.description,
     '',
+    'С самого начала троим друзьям предстоит столкнуться с непреодолимыми трудностями и смогут ли они их преодолеть?',
+    '',
     work.introText || 'Погрузитесь в удивительный мир, где каждое слово стоит смаковать долго...',
     '',
     'ВЫ УВЕРЕНЫ ЧТО СМОЖЕТЕ ПРОЧИТАТЬ ЭТО?'
@@ -123,11 +129,35 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     }
   }, [showDownloadHint, showDownloadBtn]);
 
+  // Показываем вторую кнопку после нажатия первой и загрузки медиа
+  useEffect(() => {
+    if (firstButtonClicked && preloadDone && !showSecondButton) {
+      const timer = setTimeout(() => setShowSecondButton(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [firstButtonClicked, preloadDone, showSecondButton]);
+
+  // Показываем третью кнопку после нажатия второй
+  useEffect(() => {
+    if (secondButtonClicked && !showThirdButton) {
+      const timer = setTimeout(() => setShowThirdButton(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [secondButtonClicked, showThirdButton]);
+
   const pdfHref = work.pdfFile ? `${base}works/${work.pdfFile}` : `${base}works/1first.pdf`;
 
   const handleStart = () => {
     if (!preloadDone) return;
+    setFirstButtonClicked(true);
     if (onPrimeAudio) onPrimeAudio();
+  };
+
+  const handleSecondButton = () => {
+    setSecondButtonClicked(true);
+  };
+
+  const handleThirdButton = () => {
     onStartReading();
   };
 
@@ -191,7 +221,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         {/* Кнопка начать чтение */}
         <div className={`intro-action ${showButton ? 'visible' : ''}`}>
           <button 
-            className={`start-reading-button ${preloadDone ? '' : 'disabled'}`}
+            className={`start-reading-button ${preloadDone ? '' : 'disabled'} ${firstButtonClicked ? 'clicked' : ''}`}
             onClick={handleStart}
             disabled={!preloadDone || !showButton}
             aria-disabled={!preloadDone || !showButton}
@@ -211,6 +241,31 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
               <span className="percent-text">{percent}%</span>
             </div>
           </div>
+        </div>
+
+        {/* Вторая кнопка */}
+        <div className={`intro-action ${showSecondButton ? 'visible' : ''}`}>
+          <button 
+            className={`intro-button ${secondButtonClicked ? 'clicked' : ''}`}
+            onClick={handleSecondButton}
+            disabled={!showSecondButton}
+            aria-disabled={!showSecondButton}
+          >
+            <span className="button-text">Да заебал, где твоя паста ебаная?</span>
+          </button>
+        </div>
+
+        {/* Третья кнопка */}
+        <div className={`intro-action ${showThirdButton ? 'visible' : ''}`}>
+          <button 
+            className="start-reading-button promise-button"
+            onClick={handleThirdButton}
+            disabled={!showThirdButton}
+            aria-disabled={!showThirdButton}
+          >
+            <span className="button-text">Обещаю быть внимательным читателем!</span>
+            <span className="button-arrow">→</span>
+          </button>
         </div>
 
         {/* Статистика чтения - появляется отдельно */}

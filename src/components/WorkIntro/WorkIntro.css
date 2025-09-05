@@ -236,6 +236,53 @@
   filter: grayscale(0.2);
 }
 
+.start-reading-button.clicked {
+  opacity: 0.6;
+  transform: scale(0.95);
+}
+
+/* Зеленая кнопка обещания: отдельная тема от основной синей */
+.promise-button {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.25);
+  margin: 1.5rem 0; /* доп. вертикальный отступ для (3) */
+}
+.promise-button:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 14px 36px rgba(34, 197, 94, 0.35);
+}
+
+.intro-button {
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  border: none;
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  margin: 1.25rem 0; /* больше вертикальный отступ */
+}
+
+.intro-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.intro-button.clicked {
+  opacity: 0.6;
+  transform: scale(0.95);
+}
+
+.intro-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .reading-stats-wrapper {
   opacity: 0;
   transform: translateY(20px);
