@@ -11,14 +11,26 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => {
+    // Берём тему, установленную ранним скриптом в index.html, если есть
+    const attr = typeof document !== 'undefined' ? document.documentElement.getAttribute('data-theme') : 'dark';
+    return (attr || 'dark') === 'dark';
+  });
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
-    // Загружаем сохраненную тему
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setIsDark(savedTheme === 'dark');
+    // Применяем сохранённую тему ТОЛЬКО при перезагрузке вкладки
+    // Для новой вкладки/первого открытия — оставляем дефолтную тёмную (задано в index.html)
+    try {
+      const bootSource = sessionStorage.getItem('boot-theme-source');
+      const isReload = bootSource === 'reload';
+      if (isReload) {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) setIsDark(savedTheme === 'dark');
+      }
+    } catch (e) {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) setIsDark(savedTheme === 'dark');
     }
   }, []);
 

@@ -393,3 +393,14 @@
   line-height: 0 !important;
 }
 
+/* Debug: статичная линия центра области просмотра контейнера */
+.debug-center-line {
+  position: sticky;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px dashed rgba(255, 122, 198, 0.9);
+  z-index: 6;
+}
+

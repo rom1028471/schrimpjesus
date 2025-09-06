@@ -16,7 +16,7 @@ export function parseWorkMd(md, meta) {
       continue;
     }
     // Музыка
-    const musicMatch = line.match(/^\[music: ([^\],]+)(?:,\s*radius=([0-9.]+))?\]$/i);
+    const musicMatch = line.match(/^\[music:\s*([^\]]+?)(?:\s*,\s*radius\s*=\s*([0-9.]+))?\s*\]$/i);
     if (musicMatch) {
       if (buffer.length) {
         blocks.push({ type: 'text', content: buffer.join('\n') });

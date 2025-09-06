@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import './WorkIntro.css';
 
 const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
@@ -14,71 +14,96 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   const [showThirdButton, setShowThirdButton] = useState(false);
   const [firstButtonClicked, setFirstButtonClicked] = useState(false);
   const [secondButtonClicked, setSecondButtonClicked] = useState(false);
+  const [showWaitTip, setShowWaitTip] = useState(false);
+  const tipTimerRef = useRef(null);
 
   // Правильный base URL для dev и production
   const base = import.meta.env.BASE_URL || '/';
 
   // Собираем список медиа для предзагрузки
-  const mediaUrls = useMemo(() => {
-    const urls = new Set();
+  const mediaToPreload = useMemo(() => {
+    const urls = [];
     if (work?.blocks?.length) {
       for (const b of work.blocks) {
-        if (b.type === 'image' && b.imageFile) urls.add(`${base}assets/images/${b.imageFile}`);
-        if (b.type === 'music' && b.musicFile) urls.add(`${base}assets/audio/${b.musicFile}`);
+        if (b.type === 'image' && b.imageFile) {
+          urls.push(`${base}assets/images/${b.imageFile}`);
+        }
+        if (b.type === 'music' && b.musicFile) {
+          urls.push(`${base}assets/audio/${b.musicFile}`);
+        }
       }
     }
-    if (work?.coverImage) urls.add(`${base}assets/images/${work.coverImage}`);
-    // Можно добавить и PDF, если критично: urls.add(`${base}works/${work.pdfFile}`)
-    return Array.from(urls);
+    if (work?.coverImage) {
+      urls.push(`${base}assets/images/${work.coverImage}`);
+    }
+    return urls;
   }, [work, base]);
 
   // Предзагрузка медиа во время интро
   useEffect(() => {
-    let aborted = false;
-    const controller = new AbortController();
-    setPreloadProgress(0);
-    setPreloadDone(false);
+    if (!mediaToPreload || mediaToPreload.length === 0) {
+      setPreloadDone(true);
+      return;
+    }
 
+    // Получаем базовый URL для медиа
+    const base = import.meta.env.BASE_URL || '/';
+    
+    // Подготавливаем URL для загрузки
+    const mediaUrls = mediaToPreload.map(path => {
+      // Удаляем начальный слеш, если он есть
+      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+      return `${base}${cleanPath}`.replace(/\/+$/, '');
+    });
+
+    let isMounted = true;
+    
     const preload = async () => {
-      if (!mediaUrls.length) {
-        setPreloadProgress(1);
-        setPreloadDone(true);
-        return;
-      }
-      
-      // Создаём массив промисов для параллельной загрузки
-      const promises = mediaUrls.map(async (url, index) => {
-        try {
-          const res = await fetch(url, { signal: controller.signal, cache: 'force-cache' });
-          await res.blob();
-          return index; // Возвращаем индекс успешно загруженного файла
-        } catch (e) {
-          if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
-          return index; // Считаем как загруженный даже при ошибке
-        }
-      });
+      try {
+        // Создаём массив промисов для параллельной загрузки
+        const promises = mediaUrls.map((url, index) => 
+          fetch(url, { 
+            cache: 'force-cache',
+            // Не используем AbortController, чтобы избежать ошибок при размонтировании
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.blob();
+          })
+          .then(() => index)
+          .catch(e => {
+            if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
+            return index; // Продолжаем считать как успешно загруженный
+          })
+        );
 
-      // Обрабатываем результаты по мере завершения
-      let completed = 0;
-      const total = mediaUrls.length;
-      
-      for (const promise of promises) {
-        if (aborted) return;
-        await promise;
-        completed += 1;
-        // Обновляем прогресс с плавным переходом
-        setPreloadProgress(completed / total);
+        // Обрабатываем результаты по мере завершения
+        let completed = 0;
+        const total = mediaUrls.length;
+        
+        for (const promise of promises) {
+          if (!isMounted) return;
+          await promise;
+          completed += 1;
+          // Обновляем прогресс с плавным переходом
+          if (isMounted) {
+            setPreloadProgress(completed / total);
+          }
+        }
+        
+        if (isMounted) setPreloadDone(true);
+      } catch (e) {
+        console.error('Error during preload:', e);
+        if (isMounted) setPreloadDone(true); // В любом случае разрешаем продолжить
       }
-      
-      if (!aborted) setPreloadDone(true);
     };
 
     preload();
+    
     return () => {
-      aborted = true;
-      controller.abort();
+      isMounted = false;
     };
-  }, [mediaUrls]);
+  }, [mediaToPreload, base]);
 
   // Интро текст с анимированными строками
   const introLines = [
@@ -148,7 +173,18 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   const pdfHref = work.pdfFile ? `${base}works/${work.pdfFile}` : `${base}works/1first.pdf`;
 
   const handleStart = () => {
-    if (!preloadDone) return;
+    if (!preloadDone) {
+      // Показываем подсказку при каждом клике, пока медиа не загружены
+      if (tipTimerRef.current) clearTimeout(tipTimerRef.current);
+      // Сбрасываем, чтобы перезапустить анимацию
+      setShowWaitTip(false);
+      // Следующим кадром включаем снова, чтобы сработал transition
+      requestAnimationFrame(() => {
+        setShowWaitTip(true);
+        tipTimerRef.current = setTimeout(() => setShowWaitTip(false), 1500);
+      });
+      return;
+    }
     setFirstButtonClicked(true);
     if (onPrimeAudio) onPrimeAudio();
   };
@@ -164,6 +200,9 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   // Очистка медиа при выходе со страницы
   useEffect(() => {
     return () => {
+      if (tipTimerRef.current) {
+        clearTimeout(tipTimerRef.current);
+      }
       // Очищаем кэш медиа при выходе со страницы
       if ('caches' in window) {
         caches.keys().then(cacheNames => {
@@ -221,15 +260,18 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         {/* Кнопка начать чтение */}
         <div className={`intro-action ${showButton ? 'visible' : ''}`}>
           <button 
-            className={`start-reading-button ${preloadDone ? '' : 'disabled'} ${firstButtonClicked ? 'clicked' : ''}`}
+            className={`start-reading-button ${!preloadDone ? '' : ''} ${firstButtonClicked ? 'clicked' : ''}`}
             onClick={handleStart}
-            disabled={!preloadDone || !showButton}
-            aria-disabled={!preloadDone || !showButton}
-            title={preloadDone ? 'Готово к чтению' : 'Загружается медиа...'}
+            disabled={firstButtonClicked || !showButton}
+            aria-disabled={firstButtonClicked || !showButton}
+            title={preloadDone ? 'Готово к чтению' : 'Дождитесь загрузки медиа'}
           >
             <span className="button-text">Приступить к чтению</span>
             <span className="button-arrow">→</span>
           </button>
+          {!preloadDone && showWaitTip && (
+            <div className="wait-tooltip" role="status" aria-live="polite">Дождитесь загрузки медиа</div>
+          )}
           
           {/* Индикатор загрузки медиа */}
           <div className="media-preload-wrapper">

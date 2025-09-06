@@ -226,7 +226,7 @@ const WorkReader = ({ work, onBack }) => {
     musicRefs.current = new Array(work.blocks.length).fill(null);
   }, [work]);
 
-  // --- MUSIC: обработка скролла и активация ---
+  // --- MUSIC: обработка скролла и активация (по центру области просмотра контейнера) ---
   useEffect(() => {
     let lastDistsLog = 0;
     const handleMusic = () => {
@@ -238,76 +238,58 @@ const WorkReader = ({ work, onBack }) => {
         }
         lastLog.current = now;
       }
-      if (!scrollRef.current) return;
-      const viewportHeight = window.innerHeight;
-      const contentTop = headerVisible ? headerHeight : 0;
-      const contentHeight = Math.max(0, viewportHeight - contentTop);
-      const contentCenter = contentTop + contentHeight / 2;
+      const container = scrollRef.current;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      const clientH = container.clientHeight;
+      const scrollTop = container.scrollTop;
+      const contentCenter = scrollTop + clientH / 2; // статичная линия по центру контейнера
       let found = null;
       const dists = [];
-      // Группируем кандидатов по имени файла и выбираем ближайшую к центру группу
-      const groups = new Map(); // musicFile -> [{ idx, dist, radius }]
+      // Кандидаты: те зоны, в которых contentCenter находится МЕЖДУ top и bottom зоны
       for (const i of musicBlockIndices) {
-        const ref = musicRefs.current[i];
-        if (!ref) continue;
-        const rect = ref.getBoundingClientRect();
-        const center = (rect.top + rect.bottom) / 2;
-        const dist = Math.abs(center - contentCenter);
+        const el = musicRefs.current[i];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const centerViewportY = (r.top + r.bottom) / 2;
+        const centerInContainer = centerViewportY - containerRect.top + scrollTop;
         const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
-        const activationZone = contentHeight * radius;
-        if (debugMode) dists.push({ file: work.blocks[i].musicFile, dist, activationZone });
-        if (center >= contentTop && center <= contentTop + contentHeight && dist < activationZone) {
-          const file = work.blocks[i].musicFile;
-          if (!groups.has(file)) groups.set(file, []);
-          groups.get(file).push({ idx: i, dist, radius });
+        const activationZone = clientH * radius;
+        const zoneTop = centerInContainer - activationZone;
+        const zoneBottom = centerInContainer + activationZone;
+        const inZone = contentCenter >= zoneTop && contentCenter <= zoneBottom;
+        const dist = Math.abs(centerInContainer - contentCenter);
+        if (debugMode) dists.push({ file: work.blocks[i].musicFile, dist, zoneTop, zoneBottom });
+        if (inZone) {
+          // Выбираем ближайшего к центру кандидата
+          if (!found || dist < Math.abs((found.centerInContainer ?? 0) - contentCenter)) {
+            found = { musicFile: work.blocks[i].musicFile, idx: i, radius, centerInContainer };
+          }
         }
       }
       if (debugMode && dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
         console.log('[AUDIO] dists:', dists);
         lastDistsLog = now;
       }
-      if (groups.size) {
-        let bestGroup = null;
-        let minGroupDist = Infinity;
-
-        for (const [file, candidates] of groups.entries()) {
-          // Находим минимальную дистанцию для каждой группы
-          const groupMinDist = Math.min(...candidates.map(c => c.dist));
-          if (groupMinDist < minGroupDist) {
-            minGroupDist = groupMinDist;
-            bestGroup = { file, candidates };
-          }
-        }
-
-        if (bestGroup) {
-          // Внутри лучшей группы выбираем ближайшего кандидата для `idx`
-          const bestCandidate = bestGroup.candidates.reduce((best, current) => 
-            current.dist < best.dist ? current : best
-          );
-          found = { musicFile: bestGroup.file, idx: bestCandidate.idx, radius: bestCandidate.radius };
-        }
-      }
 
       const prev = currentActiveRef.current;
 
       // Гистерезис: если новый активный трек не найден, но предыдущий все еще в зоне активации — оставляем его
       if (!found && prev && prev.musicFile) {
-        const prevGroupCandidates = [];
         for (let i = 0; i < work.blocks.length; i++) {
           if (work.blocks[i].musicFile === prev.musicFile && musicRefs.current[i]) {
             const r = musicRefs.current[i].getBoundingClientRect();
-            const center = (r.top + r.bottom) / 2;
-            const dist = Math.abs(center - contentCenter);
+            const centerViewportY = (r.top + r.bottom) / 2;
+            const centerInContainer = centerViewportY - containerRect.top + scrollTop;
             const radius = typeof work.blocks[i].radius === 'number' ? work.blocks[i].radius : DEFAULT_MUSIC_RADIUS;
-            const activationZone = contentHeight * radius;
-            // Проверяем, находится ли хоть одна из под-зон старого трека в расширенной зоне активации
-            if (center >= contentTop && center <= contentTop + contentHeight && dist < activationZone * 1.25) {
-              prevGroupCandidates.push({ dist });
+            const activationZone = clientH * radius;
+            const zoneTop = centerInContainer - activationZone;
+            const zoneBottom = centerInContainer + activationZone;
+            if (contentCenter >= zoneTop && contentCenter <= zoneBottom) {
+              found = prev; // все еще в зоне — продолжаем играть
+              break;
             }
           }
-        }
-        if (prevGroupCandidates.length > 0) {
-          found = prev; // Удерживаем трек активным
         }
       }
 
@@ -703,10 +685,14 @@ const WorkReader = ({ work, onBack }) => {
               top: 0,
               left: 0,
               right: 0,
+              bottom: 0,
+              minHeight: '100%',
               pointerEvents: 'none',
               zIndex: 5
             }}
           >
+            {/* Статичная линия центра области просмотра контейнера */}
+            <div className="debug-center-line" />
             {musicDebugBands.map((b, idx) => (
               <div
                 key={idx}

@@ -5,6 +5,34 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SchrimpJesus - Литературные произведения</title>
+    <script>
+      // Устанавливаем тему до загрузки React, чтобы избежать мигания
+      (function() {
+        try {
+          var nav = (performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation')[0] : null;
+          var isReload = nav && nav.type === 'reload';
+          var sessionStarted = sessionStorage.getItem('session-started');
+          if (!sessionStarted) {
+            sessionStorage.setItem('session-started', '1');
+          }
+          sessionStorage.setItem('boot-theme-source', isReload ? 'reload' : 'new');
+          var saved = localStorage.getItem('theme');
+          var theme;
+          if (isReload) {
+            theme = saved || 'dark';
+          } else if (!sessionStarted) {
+            // Новая сессия / новая вкладка — по дефолту тёмная
+            theme = 'dark';
+          } else {
+            // В рамках текущей сессии — используем сохранённую, если есть
+            theme = saved || 'dark';
+          }
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
