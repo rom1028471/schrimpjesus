@@ -421,13 +421,11 @@ const WorkReader = ({ work, onBack }) => {
 
     // Сохраняем позицию предыдущего трека при переключении
     if (previousFile && !isSameFile) {
-      if (audioRef.current.src && audioRef.current.src.endsWith(previousFile)) {
-        const currentTime = audioRef.current.currentTime;
-        lastPauseTime.current[previousFile] = Date.now();
-        lastPositions.current[previousFile] = currentTime;
-        if (import.meta.env.DEV && debugMode) {
-          console.log('[AUDIO] saving position on switch:', currentTime, 'for', previousFile);
-        }
+      const currentTime = audioRef.current.currentTime;
+      lastPauseTime.current[previousFile] = Date.now();
+      lastPositions.current[previousFile] = currentTime;
+      if (import.meta.env.DEV && debugMode) {
+        console.log('[AUDIO] saving position on switch:', currentTime, 'for', previousFile);
       }
     }
 
@@ -435,22 +433,11 @@ const WorkReader = ({ work, onBack }) => {
     if (!activeMusic || !activeMusic.musicFile || muted) {
       if (import.meta.env.DEV && debugMode) console.log('[AUDIO] exiting zone, previousFile:', previousFile, 'currentFile:', currentFile);
       if (import.meta.env.DEV && debugMode) console.log('[AUDIO] audioRef.src:', audioRef.current?.src);
-      if (previousFile && audioRef.current.src) {
-        // Извлекаем имя файла из URL
-        const urlFileName = audioRef.current.src.split('/').pop();
-        const decodedFileName = decodeURIComponent(urlFileName);
-        
-        if (decodedFileName === previousFile) {
-          lastPauseTime.current[previousFile] = Date.now();
-          lastPositions.current[previousFile] = audioRef.current.currentTime;
-          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] saving position on exit:', audioRef.current.currentTime, 'for', previousFile);
-        } else {
-          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] filename mismatch, decoded:', decodedFileName, 'vs previousFile:', previousFile);
-          // Сохраняем позицию в любом случае
-          lastPauseTime.current[previousFile] = Date.now();
-          lastPositions.current[previousFile] = audioRef.current.currentTime;
-          if (import.meta.env.DEV && debugMode) console.log('[AUDIO] forcing save position:', audioRef.current.currentTime, 'for', previousFile);
-        }
+      if (previousFile) {
+        const currentTime = audioRef.current.currentTime;
+        lastPauseTime.current[previousFile] = Date.now();
+        lastPositions.current[previousFile] = currentTime;
+        if (import.meta.env.DEV && debugMode) console.log('[AUDIO] saving position on exit:', currentTime, 'for', previousFile);
       }
       // быстрый fade-out при выходе
       fadeDurationRef.current = FADE_OUT_MS;
@@ -470,10 +457,13 @@ const WorkReader = ({ work, onBack }) => {
         if (audioRef.current.paused) {
           try { 
             audioRef.current.volume = 0; 
-            // Принудительно сбрасываем позицию, если трек только что был на паузе
-            const lastPause = lastPauseTime.current[activeMusic.musicFile] || 0;
-            if (Date.now() - lastPause < 1000) { // Если пауза была недавно
-              audioRef.current.currentTime = 0;
+            // Восстанавливаем позицию, если есть сохранение
+            const lastPause = lastPauseTime.current[activeMusic.musicFile];
+            if (lastPause && Date.now() - lastPause < PAUSE_MEMORY_MS) {
+              const savedPos = lastPositions.current[activeMusic.musicFile];
+              if (savedPos !== undefined) {
+                audioRef.current.currentTime = savedPos;
+              }
             }
             audioRef.current.play().catch(e => {
               if (import.meta.env.DEV) console.warn('[AUDIO] play failed:', e);
