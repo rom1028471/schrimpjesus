@@ -721,21 +721,25 @@ const WorkReader = ({ work, onBack }) => {
   // --- MUSIC: остановка при сворачивании/выключении экрана ---
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && audioRef.current && !audioRef.current.paused) {
-        if (import.meta.env.DEV) console.log('[AUDIO] paused due to page hidden');
-        audioRef.current.pause();
-        // Сохраняем позицию при сворачивании
-        const currentFile = activeMusic?.musicFile;
-        if (currentFile) {
-          lastPauseTime.current[currentFile] = Date.now();
-          lastPositions.current[currentFile] = audioRef.current.currentTime;
+      if (document.hidden) {
+        // При сворачивании всегда останавливаем и сохраняем позицию
+        if (audioRef.current && !audioRef.current.paused) {
+          if (import.meta.env.DEV) console.log('[AUDIO] paused due to page hidden');
+          audioRef.current.pause();
+          const currentFile = activeMusic?.musicFile;
+          if (currentFile) {
+            lastPauseTime.current[currentFile] = Date.now();
+            lastPositions.current[currentFile] = audioRef.current.currentTime;
+          }
         }
-      } else if (!document.hidden && audioRef.current && audioRef.current.paused && activeMusic) {
-        // Автоматически возобновляем воспроизведение при возвращении в зону
-        if (import.meta.env.DEV) console.log('[AUDIO] resuming after page visible');
-        audioRef.current.play().catch(e => {
-          if (import.meta.env.DEV) console.warn('[AUDIO] resume failed:', e);
-        });
+      } else {
+        // При возвращении возобновляем только если есть активный трек
+        if (audioRef.current && audioRef.current.paused && activeMusic && !muted) {
+          if (import.meta.env.DEV) console.log('[AUDIO] resuming after page visible');
+          audioRef.current.play().catch(e => {
+            if (import.meta.env.DEV) console.warn('[AUDIO] resume failed:', e);
+          });
+        }
       }
     };
 
@@ -743,7 +747,6 @@ const WorkReader = ({ work, onBack }) => {
       if (audioRef.current && !audioRef.current.paused) {
         if (import.meta.env.DEV) console.log('[AUDIO] paused due to page hide');
         audioRef.current.pause();
-        // Сохраняем позицию при скрытии страницы
         const currentFile = activeMusic?.musicFile;
         if (currentFile) {
           lastPauseTime.current[currentFile] = Date.now();
@@ -758,7 +761,7 @@ const WorkReader = ({ work, onBack }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pagehide', handlePageHide);
     };
-  }, [activeMusic]);
+  }, [activeMusic, muted]);
 
   // --- MUSIC: автопродолжение при включении звука кнопкой в хедере ---
   useEffect(() => {
@@ -841,6 +844,9 @@ const WorkReader = ({ work, onBack }) => {
         // Трек всё ещё в зоне и НЕ на паузе - дополнительно запускаем для надежности
         if (!audioRef.current.paused) {
           console.log('[AUDIO] Reliability restart after 3s (track should be playing but no sound)');
+          // Принудительно запускаем с fade-in
+          fadeDurationRef.current = FADE_IN_MS;
+          setFadeTarget(1);
           audioRef.current.play().catch(e => {
             if (import.meta.env.DEV) console.warn('[AUDIO] Reliability restart failed:', e);
           });
