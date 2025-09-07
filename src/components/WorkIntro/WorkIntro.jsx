@@ -55,14 +55,71 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         const fetchWithRetry = async (url, attempts = 3) => {
           for (let i = 0; i < attempts; i++) {
             try {
-              const res = await fetch(url, { cache: i === 0 ? 'reload' : 'no-store' });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              await res.blob();
-              return true;
+              // Для аудио файлов проверяем готовность к воспроизведению
+              if (url.includes('/audio/')) {
+                const audio = new Audio();
+                audio.preload = 'auto';
+                
+                return new Promise((resolve) => {
+                  let resolved = false;
+                  
+                  const cleanup = () => {
+                    if (resolved) return;
+                    resolved = true;
+                    audio.removeEventListener('canplaythrough', onCanPlay);
+                    audio.removeEventListener('error', onError);
+                    audio.removeEventListener('loadstart', onLoadStart);
+                  };
+                  
+                  const onCanPlay = () => {
+                    cleanup();
+                    resolve(true);
+                  };
+                  
+                  const onError = (e) => {
+                    cleanup();
+                    if (import.meta.env.DEV) console.warn('Audio preload error:', url, e);
+                    resolve(false);
+                  };
+                  
+                  const onLoadStart = () => {
+                    // Убираем таймаут - ждем до полной загрузки
+                    if (import.meta.env.DEV) console.log('Audio preload started:', url);
+                  };
+                  
+                  audio.addEventListener('canplaythrough', onCanPlay);
+                  audio.addEventListener('error', onError);
+                  audio.addEventListener('loadstart', onLoadStart);
+                  
+                  audio.src = url;
+                });
+              } else {
+                // Для изображений используем более надежный fetch
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 секунд
+                
+                try {
+                  const res = await fetch(url, { 
+                    cache: 'force-cache',
+                    signal: controller.signal,
+                    headers: {
+                      'Cache-Control': 'max-age=31536000'
+                    }
+                  });
+                  clearTimeout(timeoutId);
+                  
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  await res.blob();
+                  return true;
+                } catch (e) {
+                  clearTimeout(timeoutId);
+                  throw e;
+                }
+              }
             } catch (e) {
               if (import.meta.env.DEV) console.warn('Preload attempt failed:', url, e);
               if (i === attempts - 1) return false;
-              await new Promise(r => setTimeout(r, 300 * (i + 1)));
+              await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Увеличиваем задержку
             }
           }
           return false;
@@ -188,27 +245,13 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     onStartReading();
   };
 
-  // Очистка медиа при выходе со страницы
+  // Очистка только таймеров при выходе со страницы
   useEffect(() => {
     return () => {
       if (tipTimerRef.current) {
         clearTimeout(tipTimerRef.current);
       }
-      // Очищаем кэш медиа при выходе со страницы
-      if ('caches' in window) {
-        caches.keys().then(cacheNames => {
-          cacheNames.forEach(cacheName => {
-            if (cacheName.includes('media-cache')) {
-              caches.delete(cacheName);
-            }
-          });
-        });
-      }
-      
-      // Принудительно очищаем память браузера
-      if (window.gc) {
-        window.gc();
-      }
+      // НЕ очищаем медиа кэш при переходе к чтению - медиа должно остаться в кэше
     };
   }, []);
 

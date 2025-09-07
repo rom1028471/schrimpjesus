@@ -46,21 +46,8 @@ function App() {
   };
 
   const handleBackToList = () => {
-    // Очищаем медиа при возврате к списку
-    if ('caches' in window) {
-      caches.keys().then(cacheNames => {
-        cacheNames.forEach(cacheName => {
-          if (cacheName.includes('media-cache')) {
-            caches.delete(cacheName);
-          }
-        });
-      });
-    }
-    
-    // Принудительно очищаем память браузера
-    if (window.gc) {
-      window.gc();
-    }
+    // НЕ очищаем медиа при возврате к списку - оставляем в кэше для быстрого доступа
+    // Очистка медиа происходит только при полном выходе из приложения
     
     setSelectedWork(null);
     setShowIntro(false);
