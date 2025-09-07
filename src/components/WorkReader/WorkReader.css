@@ -178,7 +178,7 @@
     font-size: calc(1.04rem * var(--font-size, 1.02));
   }
   .workreader-block {
-    padding: 0.8em 6vw;
+    padding: 0.8em 8vw;
     font-size: calc(1.02rem * var(--font-size, 1.02));
     border-radius: 0;
     width: 100%;
@@ -190,16 +190,24 @@
 }
 
 /* Мобильный горизонтальный режим: сохраняем портретную ширину текста */
-@media (max-width: 700px) and (orientation: landscape) {
+@media (max-width: 1000px) and (orientation: landscape) {
   .workreader-scroll {
-    max-width: 520px; /* ближе к портретной ширине на телефоне */
+    max-width: 720px; /* ближе к портретной ширине на телефоне */
     width: 100vw;
     margin-left: auto;
     margin-right: auto;
   }
   .workreader-block {
+    max-width: 720px;
     padding-left: 9vw;
     padding-right: 9vw;
+  }
+  .workreader-bg-img,
+  .workreader-window-img {
+    max-width: 700px;
+  }
+  .workreader-img-container {
+    max-width: 700px;
   }
 }
 

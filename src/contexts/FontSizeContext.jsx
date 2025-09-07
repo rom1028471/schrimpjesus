@@ -11,8 +11,8 @@ export const useFontSize = () => {
 };
 
 export const FontSizeProvider = ({ children }) => {
-  const MIN_FONT_SIZE = 0.95;
-  const MAX_FONT_SIZE = 1.10;
+  const MIN_FONT_SIZE = 1.06;
+  const MAX_FONT_SIZE = 1.23;
   const FONT_STEP = 0.05;
 
   // Инициализируем с сохраненным значением или дефолтным
@@ -24,7 +24,7 @@ export const FontSizeProvider = ({ children }) => {
         return size;
       }
     }
-    return 1.03; // Дефолтное значение
+    return 1.14; // Дефолтное значение
   };
 
   const [fontSize, setFontSize] = useState(getInitialFontSize);
