@@ -64,6 +64,27 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
       try {
         if (import.meta.env.DEV) console.log('Начало загрузки медиа:', mediaUrls);
         
+        // Создаём массив для хранения статусов загрузки
+        const loadStatus = Array(mediaUrls.length).fill(false);
+        const total = mediaUrls.length;
+        
+        // Функция для обновления прогресса
+        const updateProgress = () => {
+          if (!isMounted) return;
+          const loadedCount = loadStatus.filter(Boolean).length;
+          const progress = loadedCount / total;
+          setPreloadProgress(progress);
+          
+          if (import.meta.env.DEV) {
+            console.log(`Прогресс загрузки: ${Math.round(progress * 100)}% (${loadedCount}/${total})`);
+          }
+          
+          if (loadedCount === total) {
+            setPreloadDone(true);
+            if (import.meta.env.DEV) console.log('Все медиа загружены');
+          }
+        };
+        
         // Создаём массив промисов для параллельной загрузки
         const promises = mediaUrls.map((url, index) => 
           fetch(url, { 
@@ -75,28 +96,23 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
             return res.blob();
           })
           .then(blob => {
-            if (import.meta.env.DEV) console.log(`Загружено: ${url} (${Math.round(blob.size / 1024)} KB)`);
-            return index;
+            if (!isMounted) return;
+            loadStatus[index] = true;
+            if (import.meta.env.DEV) {
+              console.log(`Загружено: ${url} (${Math.round(blob.size / 1024)} KB)`);
+            }
+            updateProgress();
           })
           .catch(e => {
             if (import.meta.env.DEV) console.warn('Ошибка загрузки:', url, e);
-            return index; // Продолжаем считать как успешно загруженный
+            // Помечаем как загруженное, чтобы не блокировать прогресс
+            loadStatus[index] = true;
+            updateProgress();
           })
         );
-
-        // Обрабатываем результаты по мере завершения
-        let completed = 0;
-        const total = mediaUrls.length;
         
-        // Обновляем прогресс каждые 100мс для плавности
-        progressInterval = setInterval(() => {
-          if (!isMounted) {
-            clearInterval(progressInterval);
-            return;
-          }
-          const progress = completed / total;
-          setPreloadProgress(prev => Math.max(prev, progress));
-        }, 100);
+        // Запускаем обновление прогресса каждые 100мс
+        progressInterval = setInterval(updateProgress, 100);
         
         // Ждем завершения всех загрузок
         await Promise.all(promises);
@@ -107,8 +123,6 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         setPreloadProgress(1);
         setPreloadDone(true);
         
-        if (import.meta.env.DEV) console.log('Все медиа загружены');
-        
       } catch (e) {
         console.error('Ошибка при загрузке медиа:', e);
         if (isMounted) {
@@ -116,7 +130,10 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
           setPreloadProgress(1);
         }
       } finally {
-        if (progressInterval) clearInterval(progressInterval);
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
       }
     };
 
