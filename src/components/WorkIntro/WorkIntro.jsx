@@ -52,41 +52,40 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     
     const preload = async () => {
       try {
+        const fetchWithRetry = async (url, attempts = 3) => {
+          for (let i = 0; i < attempts; i++) {
+            try {
+              const res = await fetch(url, { cache: i === 0 ? 'reload' : 'no-store' });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              await res.blob();
+              return true;
+            } catch (e) {
+              if (import.meta.env.DEV) console.warn('Preload attempt failed:', url, e);
+              if (i === attempts - 1) return false;
+              await new Promise(r => setTimeout(r, 300 * (i + 1)));
+            }
+          }
+          return false;
+        };
+
         // Создаём массив промисов для параллельной загрузки
-        const promises = mediaUrls.map((url, index) => 
-          fetch(url, { 
-            cache: 'force-cache',
-            // Не используем AbortController, чтобы избежать ошибок при размонтировании
-          })
-          .then(res => {
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            return res.blob();
-          })
-          .then(() => index)
-          .catch(e => {
-            if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
-            return index; // Продолжаем считать как успешно загруженный
-          })
-        );
+        const promises = mediaUrls.map((url) => fetchWithRetry(url));
 
         // Обрабатываем результаты по мере завершения
-        let completed = 0;
+        let successes = 0;
         const total = mediaUrls.length;
         
         for (const promise of promises) {
           if (!isMounted) return;
-          await promise;
-          completed += 1;
-          // Обновляем прогресс с плавным переходом
-          if (isMounted) {
-            setPreloadProgress(completed / total);
-          }
+          const ok = await promise;
+          if (ok) successes += 1;
+          if (isMounted) setPreloadProgress(successes / total);
         }
         
-        if (isMounted) setPreloadDone(true);
+        if (isMounted) setPreloadDone(successes === total);
       } catch (e) {
         console.error('Error during preload:', e);
-        if (isMounted) setPreloadDone(true); // В любом случае разрешаем продолжить
+        if (isMounted) setPreloadDone(false);
       }
     };
 
