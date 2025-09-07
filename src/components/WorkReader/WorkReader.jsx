@@ -391,7 +391,9 @@ const WorkReader = ({ work, onBack }) => {
               });
             }
           }
+          // Принудительно поднимаем громкость при входе в зону
           if (fadeTarget < 0.1) {
+            fadeDurationRef.current = FADE_IN_MS;
             setFadeTarget(1);
           }
         }
@@ -550,6 +552,11 @@ const WorkReader = ({ work, onBack }) => {
     const attemptPlay = (attempt = 0, gen = generationRef.current) => {
       if (!audioRef.current || lastValidMusicRef.current !== activeMusic) return;
       if (gen !== generationRef.current) return; // отмена старых попыток
+      
+      // Принудительная проверка: если трек должен играть, но не играет - перезапускаем
+      if (audioRef.current.paused && fadeTarget > 0.1) {
+        console.log('[AUDIO] Force restart: track should be playing but is paused');
+      }
       
       const isNewTrack = previousMusicFileRef.current !== activeMusic.musicFile;
       
@@ -717,6 +724,12 @@ const WorkReader = ({ work, onBack }) => {
       if (document.hidden && audioRef.current && !audioRef.current.paused) {
         if (import.meta.env.DEV) console.log('[AUDIO] paused due to page hidden');
         audioRef.current.pause();
+        // Сохраняем позицию при сворачивании
+        const currentFile = activeMusic?.musicFile;
+        if (currentFile) {
+          lastPauseTime.current[currentFile] = Date.now();
+          lastPositions.current[currentFile] = audioRef.current.currentTime;
+        }
       } else if (!document.hidden && audioRef.current && audioRef.current.paused && activeMusic) {
         // Автоматически возобновляем воспроизведение при возвращении в зону
         if (import.meta.env.DEV) console.log('[AUDIO] resuming after page visible');
@@ -726,8 +739,25 @@ const WorkReader = ({ work, onBack }) => {
       }
     };
 
+    const handlePageHide = () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        if (import.meta.env.DEV) console.log('[AUDIO] paused due to page hide');
+        audioRef.current.pause();
+        // Сохраняем позицию при скрытии страницы
+        const currentFile = activeMusic?.musicFile;
+        if (currentFile) {
+          lastPauseTime.current[currentFile] = Date.now();
+          lastPositions.current[currentFile] = audioRef.current.currentTime;
+        }
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
   }, [activeMusic]);
 
   // --- MUSIC: автопродолжение при включении звука кнопкой в хедере ---
@@ -779,6 +809,47 @@ const WorkReader = ({ work, onBack }) => {
       setFadeTarget(0);
     }
   }, [muted]);
+
+  // --- MUSIC: принудительная проверка воспроизведения при быстром скролле ---
+  useEffect(() => {
+    if (!audioRef.current) return;
+    
+    const checkPlayback = () => {
+      const active = currentActiveRef.current;
+      if (active && active.musicFile && !muted) {
+        // Если есть активный трек, но он на паузе и должен играть
+        if (audioRef.current.paused && fadeTarget > 0.1) {
+          console.log('[AUDIO] Force play: track should be playing but is paused');
+          audioRef.current.play().catch(e => {
+            if (import.meta.env.DEV) console.warn('[AUDIO] Force play failed:', e);
+          });
+        }
+      }
+    };
+    
+    const interval = setInterval(checkPlayback, 200); // проверяем каждые 200мс
+    return () => clearInterval(interval);
+  }, [muted, fadeTarget]);
+
+  // --- MUSIC: дополнительный запуск трека через 3 секунды для надежности ---
+  useEffect(() => {
+    if (!audioRef.current || !activeMusic?.musicFile || muted) return;
+    
+    const timer = setTimeout(() => {
+      const active = currentActiveRef.current;
+      if (active && active.musicFile === activeMusic.musicFile && !muted) {
+        // Трек всё ещё в зоне и НЕ на паузе - дополнительно запускаем для надежности
+        if (!audioRef.current.paused) {
+          console.log('[AUDIO] Reliability restart after 3s (track should be playing but no sound)');
+          audioRef.current.play().catch(e => {
+            if (import.meta.env.DEV) console.warn('[AUDIO] Reliability restart failed:', e);
+          });
+        }
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [activeMusic?.musicFile, muted]);
 
   // --- MUSIC: логирование через события аудио ---
   useEffect(() => {
