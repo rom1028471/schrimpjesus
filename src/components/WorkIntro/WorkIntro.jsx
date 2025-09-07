@@ -43,7 +43,6 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   useEffect(() => {
     if (!mediaToPreload || mediaToPreload.length === 0) {
       setPreloadDone(true);
-      setPreloadProgress(1);
       return;
     }
 
@@ -59,32 +58,8 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
 
     let isMounted = true;
     
-    let progressInterval = null;
     const preload = async () => {
       try {
-        if (import.meta.env.DEV) console.log('Начало загрузки медиа:', mediaUrls);
-        
-        // Создаём массив для хранения статусов загрузки
-        const loadStatus = Array(mediaUrls.length).fill(false);
-        const total = mediaUrls.length;
-        
-        // Функция для обновления прогресса
-        const updateProgress = () => {
-          if (!isMounted) return;
-          const loadedCount = loadStatus.filter(Boolean).length;
-          const progress = loadedCount / total;
-          setPreloadProgress(progress);
-          
-          if (import.meta.env.DEV) {
-            console.log(`Прогресс загрузки: ${Math.round(progress * 100)}% (${loadedCount}/${total})`);
-          }
-          
-          if (loadedCount === total) {
-            setPreloadDone(true);
-            if (import.meta.env.DEV) console.log('Все медиа загружены');
-          }
-        };
-        
         // Создаём массив промисов для параллельной загрузки
         const promises = mediaUrls.map((url, index) => 
           fetch(url, { 
@@ -95,45 +70,31 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             return res.blob();
           })
-          .then(blob => {
-            if (!isMounted) return;
-            loadStatus[index] = true;
-            if (import.meta.env.DEV) {
-              console.log(`Загружено: ${url} (${Math.round(blob.size / 1024)} KB)`);
-            }
-            updateProgress();
-          })
+          .then(() => index)
           .catch(e => {
-            if (import.meta.env.DEV) console.warn('Ошибка загрузки:', url, e);
-            // Помечаем как загруженное, чтобы не блокировать прогресс
-            loadStatus[index] = true;
-            updateProgress();
+            if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
+            return index; // Продолжаем считать как успешно загруженный
           })
         );
+
+        // Обрабатываем результаты по мере завершения
+        let completed = 0;
+        const total = mediaUrls.length;
         
-        // Запускаем обновление прогресса каждые 100мс
-        progressInterval = setInterval(updateProgress, 100);
+        for (const promise of promises) {
+          if (!isMounted) return;
+          await promise;
+          completed += 1;
+          // Обновляем прогресс с плавным переходом
+          if (isMounted) {
+            setPreloadProgress(completed / total);
+          }
+        }
         
-        // Ждем завершения всех загрузок
-        await Promise.all(promises);
-        
-        if (!isMounted) return;
-        
-        // Убедимся, что прогресс дошел до 100%
-        setPreloadProgress(1);
-        setPreloadDone(true);
-        
+        if (isMounted) setPreloadDone(true);
       } catch (e) {
-        console.error('Ошибка при загрузке медиа:', e);
-        if (isMounted) {
-          setPreloadDone(true); // В любом случае разрешаем продолжить
-          setPreloadProgress(1);
-        }
-      } finally {
-        if (progressInterval) {
-          clearInterval(progressInterval);
-          progressInterval = null;
-        }
+        console.error('Error during preload:', e);
+        if (isMounted) setPreloadDone(true); // В любом случае разрешаем продолжить
       }
     };
 
@@ -142,7 +103,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     return () => {
       isMounted = false;
     };
-  }, [mediaToPreload]);
+  }, [mediaToPreload, base]);
 
   // Интро текст с анимированными строками
   const introLines = [
@@ -299,10 +260,10 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         {/* Кнопка начать чтение */}
         <div className={`intro-action ${showButton ? 'visible' : ''}`}>
           <button 
-            className={`start-reading-button ${!preloadDone ? 'loading' : ''} ${firstButtonClicked ? 'clicked' : ''}`}
+            className={`start-reading-button ${!preloadDone ? '' : ''} ${firstButtonClicked ? 'clicked' : ''}`}
             onClick={handleStart}
-            disabled={!preloadDone || firstButtonClicked || !showButton}
-            aria-disabled={!preloadDone || firstButtonClicked || !showButton}
+            disabled={firstButtonClicked || !showButton}
+            aria-disabled={firstButtonClicked || !showButton}
             title={preloadDone ? 'Готово к чтению' : 'Дождитесь загрузки медиа'}
           >
             <span className="button-text">Приступить к чтению</span>
