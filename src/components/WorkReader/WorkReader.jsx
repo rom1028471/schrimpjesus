@@ -8,8 +8,12 @@ const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
 
 const DEFAULT_MUSIC_RADIUS = 0.3;
-const FADE_DURATION = 5000; // 5 секунд
-const PAUSE_MEMORY = 30000; // 30 секунд
+const FADE_IN_MS = 5000; // плавный вход 5 секунд
+const FADE_OUT_MS = 3000; // затухание 3 секунды
+const PAUSE_MEMORY_MS = 30000; // 30 секунд
+const MIN_SWITCH_INTERVAL_MS = 220; // анти-дребезг переключений
+const MIN_STABLE_LEAD_MS = 180; // кандидат должен удерживаться лидером по времени
+const NOZONE_GRACE_MS = 250; // удерживаем предыдущий трек короткое время, если центр кратковременно вне зон
 
 const WorkReader = ({ work, onBack }) => {
   useLockBodyScroll();
@@ -116,6 +120,11 @@ const WorkReader = ({ work, onBack }) => {
   const { muted, volume } = useSound();
   const previousMusicFileRef = useRef(null);
   const currentActiveRef = useRef(null); // стабилизация активного трека
+  const generationRef = useRef(0); // токен для отмены гонок
+  const fadeDurationRef = useRef(FADE_IN_MS);
+  const lastSwitchTimeRef = useRef(0);
+  const stableCandidateRef = useRef({ candidate: null, since: 0 });
+  const lastFoundTimeRef = useRef(0);
 
   // Viewport-фиксированные debug-оверлеи удалены. В отладке рисуем только аудио-полосы внутри скролл-контейнера.
 
@@ -301,6 +310,7 @@ const WorkReader = ({ work, onBack }) => {
       // Сортируем кандидатов по приоритету (ближе к центру зоны = выше приоритет)
       candidates.sort((a, b) => b.priority - a.priority);
       let found = candidates[0] || null;
+      if (found) lastFoundTimeRef.current = now;
       
       if (debugMode && dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
         console.log('[AUDIO] audio zones:', dists);
@@ -314,6 +324,25 @@ const WorkReader = ({ work, onBack }) => {
 
       const prev = currentActiveRef.current;
 
+      // Временной гистерезис: кандидат должен удерживаться лидером MIN_STABLE_LEAD_MS
+      if (found && (!stableCandidateRef.current.candidate || stableCandidateRef.current.candidate.musicFile !== found.musicFile)) {
+        stableCandidateRef.current = { candidate: found, since: now };
+      }
+      // Применяем стабилизацию ТОЛЬКО если уже был предыдущий активный трек
+      if (prev && found && stableCandidateRef.current.candidate && stableCandidateRef.current.candidate.musicFile === found.musicFile) {
+        if (now - stableCandidateRef.current.since < MIN_STABLE_LEAD_MS) {
+          // недостаточно стабильно — оставляем предыдущий активный
+          found = prev;
+        }
+      }
+
+      // Минимальный интервал между переключениями (не мешает первому запуску, если prev отсутствует)
+      if (found && prev && found.musicFile !== prev.musicFile) {
+        if (now - lastSwitchTimeRef.current < MIN_SWITCH_INTERVAL_MS) {
+          found = prev;
+        }
+      }
+
       // Гистерезис: если новый активный трек не найден, но предыдущий все еще в зоне активации — оставляем его
       if (!found && prev && prev.musicFile) {
         for (let i = 0; i < work.blocks.length; i++) {
@@ -326,7 +355,6 @@ const WorkReader = ({ work, onBack }) => {
             const zoneTop = centerInContainer - activationZone;
             const zoneBottom = centerInContainer + activationZone;
             if (contentCenter >= zoneTop && contentCenter <= zoneBottom) {
-              // Создаем новый объект с обновленными данными вместо переназначения
               found = {
                 ...prev,
                 centerInContainer,
@@ -337,6 +365,8 @@ const WorkReader = ({ work, onBack }) => {
             }
           }
         }
+        // Если всё ещё не нашли — кратковременно удерживаем предыдущий активный без изменения границ зон
+        if (!found && now - lastFoundTimeRef.current < NOZONE_GRACE_MS) found = prev;
       }
 
       // Если трек не изменился, но находится на паузе - возобновляем
@@ -369,6 +399,10 @@ const WorkReader = ({ work, onBack }) => {
       }
       currentActiveRef.current = found;
       setActiveMusic(found);
+      if ((prev?.musicFile || null) !== (found?.musicFile || null)) {
+        lastSwitchTimeRef.current = now;
+        generationRef.current += 1; // новое поколение для отмены гонок
+      }
     };
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) return;
@@ -418,6 +452,8 @@ const WorkReader = ({ work, onBack }) => {
           if (import.meta.env.DEV && debugMode) console.log('[AUDIO] forcing save position:', audioRef.current.currentTime, 'for', previousFile);
         }
       }
+      // быстрый fade-out при выходе
+      fadeDurationRef.current = FADE_OUT_MS;
       setFadeTarget(0);
       setAudioState(s => ({ ...s, playing: false }));
       previousMusicFileRef.current = currentFile || null;
@@ -446,6 +482,8 @@ const WorkReader = ({ work, onBack }) => {
             if (import.meta.env.DEV) console.warn('[AUDIO] volume set failed:', e);
           }
         }
+        // мягкий вход
+        fadeDurationRef.current = FADE_IN_MS;
         setFadeTarget(1);
         setAudioState(s => ({
           ...s, 
@@ -467,19 +505,31 @@ const WorkReader = ({ work, onBack }) => {
     
     // Останавливаем и сбрасываем текущее воспроизведение
     try {
+      const currentSrcFile = audioRef.current.src ? decodeURIComponent(audioRef.current.src.split('/').pop()) : null;
+      const sameSrc = currentSrcFile === activeMusic.musicFile;
       audioRef.current.pause();
+      // если тот же src, не переустанавливаем src, только сбрасываем позицию и громкость
+      if (!sameSrc) {
+        audioRef.current.src = src;
+      }
       audioRef.current.currentTime = 0;
       audioRef.current.volume = 0;
-      audioRef.current.src = src;
       audioRef.current.loop = true;
       
-      // Восстанавливаем позицию, если трек не новый
-      if (!isNewTrack) {
-        const lastPause = lastPauseTime.current[activeMusic.musicFile];
-        if (lastPause && Date.now() - lastPause < PAUSE_MEMORY * 1000) {
-          const savedPos = lastPositions.current[activeMusic.musicFile];
-          if (savedPos !== undefined) {
-            audioRef.current.currentTime = savedPos;
+      // Восстанавливаем позицию при наличии сохранения (в пределах окна памяти)
+      {
+        const fileKey = activeMusic.musicFile;
+        const lastPause = lastPauseTime.current[fileKey];
+        if (lastPause) {
+          if (Date.now() - lastPause < PAUSE_MEMORY_MS) {
+            const savedPos = lastPositions.current[fileKey];
+            if (savedPos !== undefined) {
+              audioRef.current.currentTime = savedPos;
+            }
+          } else {
+            // срок хранения истёк — очищаем
+            delete lastPauseTime.current[fileKey];
+            delete lastPositions.current[fileKey];
           }
         }
       }
@@ -493,6 +543,7 @@ const WorkReader = ({ work, onBack }) => {
     // Для нового трека сбрасываем fade target
     if (isNewTrack) {
       if (import.meta.env.DEV) console.log('[AUDIO] new track detected, resetting fade');
+      fadeDurationRef.current = FADE_IN_MS;
       setFadeTarget(0);
     } else {
       // Для существующего трека начинаем с текущей громкости
@@ -506,8 +557,9 @@ const WorkReader = ({ work, onBack }) => {
     lastValidMusicRef.current = activeMusic;
     
     // Запускаем воспроизведение с экспоненциальной задержкой при ошибках
-    const attemptPlay = (attempt = 0) => {
+    const attemptPlay = (attempt = 0, gen = generationRef.current) => {
       if (!audioRef.current || lastValidMusicRef.current !== activeMusic) return;
+      if (gen !== generationRef.current) return; // отмена старых попыток
       
       const isNewTrack = previousMusicFileRef.current !== activeMusic.musicFile;
       
@@ -533,10 +585,12 @@ const WorkReader = ({ work, onBack }) => {
             // Для нового трека всегда запускаем fade-in
             if (isNewTrack) {
               if (import.meta.env.DEV) console.log('[AUDIO] starting fade-in for new track');
-              setFadeTarget(1);
+              fadeDurationRef.current = FADE_IN_MS;
+              if (gen === generationRef.current) setFadeTarget(1);
             } else if (fadeTarget < 0.1) {
               // Для существующего трека только если не в процессе fade-out
-              setFadeTarget(1);
+              fadeDurationRef.current = FADE_IN_MS;
+              if (gen === generationRef.current) setFadeTarget(1);
             }
             retryCountRef.current = 0;
           })
@@ -549,7 +603,7 @@ const WorkReader = ({ work, onBack }) => {
             if (attempt < MAX_RETRIES) {
               const delay = Math.min(100 * Math.pow(2, attempt), 1000);
               console.warn(`[AUDIO] Playback attempt ${attempt + 1} failed, retrying in ${delay}ms...`, e);
-              setTimeout(() => attemptPlay(attempt + 1), delay);
+              setTimeout(() => attemptPlay(attempt + 1, gen), delay);
             } else {
               console.error('[AUDIO] Max playback retries reached', e);
             }
@@ -557,7 +611,7 @@ const WorkReader = ({ work, onBack }) => {
       }
     };
     
-    attemptPlay();
+    attemptPlay(0, generationRef.current);
   }, [activeMusic, muted]);
 
   // --- MUSIC: fade in/out и громкость (time-based, rAF) ---
@@ -570,6 +624,7 @@ const WorkReader = ({ work, onBack }) => {
 
     const startVolume = clamp01(Number(audioRef.current.volume) || 0);
     const targetVolume = clamp01(fadeTarget * (muted ? 0 : volume));
+    const gen = generationRef.current;
     
     // Минимальное изменение громкости для срабатывания анимации
     if (Math.abs(startVolume - targetVolume) < 0.001) {
@@ -601,7 +656,7 @@ const WorkReader = ({ work, onBack }) => {
     }
 
     const startTime = performance.now();
-    const duration = FADE_DURATION;
+    const duration = targetVolume > startVolume ? FADE_IN_MS : FADE_OUT_MS;
     
     // Разные easing функции для fade-in и fade-out
     const easeInQuint = (t) => t * t * t * t * t; // медленное начало для fade-in
@@ -609,6 +664,11 @@ const WorkReader = ({ work, onBack }) => {
     const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // плавное для переключений
     
     const tick = (now) => {
+      if (gen !== generationRef.current) {
+        // отменяем устаревшую анимацию
+        fadeRafId.current = 0;
+        return;
+      }
       const t = Math.min(1, Math.max(0, (now - startTime) / duration));
       
       // Используем разные easing в зависимости от направления и контекста
@@ -679,6 +739,56 @@ const WorkReader = ({ work, onBack }) => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [activeMusic]);
+
+  // --- MUSIC: автопродолжение при включении звука кнопкой в хедере ---
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (!muted) {
+      const candidate = currentActiveRef.current || lastValidMusicRef.current;
+      if (candidate && candidate.musicFile) {
+        // Убедимся, что источник корректный
+        const base = import.meta.env.BASE_URL || '/';
+        const desiredSrc = `${base}assets/audio/${candidate.musicFile}`;
+        const currentSrcFile = audioRef.current.src ? decodeURIComponent(audioRef.current.src.split('/').pop()) : null;
+        if (currentSrcFile !== candidate.musicFile) {
+          try { audioRef.current.src = desiredSrc; } catch {}
+          try { audioRef.current.currentTime = 0; } catch {}
+        }
+        // Восстанавливаем позицию, если есть актуальная
+        const lastPause = lastPauseTime.current[candidate.musicFile];
+        if (lastPause && Date.now() - lastPause < PAUSE_MEMORY_MS) {
+          const savedPos = lastPositions.current[candidate.musicFile];
+          if (savedPos !== undefined) {
+            try { audioRef.current.currentTime = savedPos; } catch {}
+          }
+        }
+        // Запускаем с плавным входом
+        fadeDurationRef.current = FADE_IN_MS;
+        generationRef.current += 1;
+        setFadeTarget(1);
+        audioRef.current.volume = 0;
+        audioRef.current.loop = true;
+        const gen = generationRef.current;
+        audioRef.current.play().catch(e => {
+          if (import.meta.env.DEV) console.warn('[AUDIO] resume on unmute failed:', e);
+          // Пытаемся повторно
+          setTimeout(() => {
+            if (gen === generationRef.current) {
+              audioRef.current.play().catch(()=>{});
+            }
+          }, 150);
+        });
+        // Обновим ссылки
+        previousMusicFileRef.current = candidate.musicFile;
+        lastValidMusicRef.current = candidate;
+        setActiveMusic(candidate);
+      }
+    } else {
+      // При выключении — мягкое затухание
+      fadeDurationRef.current = FADE_OUT_MS;
+      setFadeTarget(0);
+    }
+  }, [muted]);
 
   // --- MUSIC: логирование через события аудио ---
   useEffect(() => {
@@ -784,7 +894,7 @@ const WorkReader = ({ work, onBack }) => {
           showVolumeControl={true}
         >
           {/* Кнопка отладки */}
-          {/*
+          
           <button
             onClick={() => setDebugMode(!debugMode)}
             style={{
@@ -807,7 +917,7 @@ const WorkReader = ({ work, onBack }) => {
           >
             🐛
           </button>
-          */}
+          
           {headerVisible && (
             isMobile ? (
               <button className="hide-header-button" onClick={() => setHeaderVisible(false)}>

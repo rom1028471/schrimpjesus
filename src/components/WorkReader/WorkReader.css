@@ -189,6 +189,20 @@
   }
 }
 
+/* Мобильный горизонтальный режим: сохраняем портретную ширину текста */
+@media (max-width: 700px) and (orientation: landscape) {
+  .workreader-scroll {
+    max-width: 520px; /* ближе к портретной ширине на телефоне */
+    width: 100vw;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .workreader-block {
+    padding-left: 9vw;
+    padding-right: 9vw;
+  }
+}
+
 .workreader-fixed-bg {
   position: fixed;
   left: 0;
