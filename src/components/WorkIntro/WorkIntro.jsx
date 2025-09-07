@@ -45,16 +45,8 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
       setPreloadDone(true);
       return;
     }
-
-    // Получаем базовый URL для медиа
-    const base = import.meta.env.BASE_URL || '/';
-    
-    // Подготавливаем URL для загрузки
-    const mediaUrls = mediaToPreload.map(path => {
-      // Удаляем начальный слеш, если он есть
-      const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-      return `${base}${cleanPath}`.replace(/\/+$/, '');
-    });
+    // Используем уже подготовленные абсолютные пути без повторного добавления BASE_URL
+    const mediaUrls = mediaToPreload;
 
     let isMounted = true;
     
@@ -103,7 +95,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     return () => {
       isMounted = false;
     };
-  }, [mediaToPreload, base]);
+  }, [mediaToPreload]);
 
   // Интро текст с анимированными строками
   const introLines = [
