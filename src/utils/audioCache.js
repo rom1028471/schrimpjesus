@@ -105,4 +105,9 @@ class AudioCache {
 // Создаем глобальный экземпляр
 const globalAudioCache = new AudioCache();
 
+// Очищаем кэш при обновлении/закрытии страницы
+window.addEventListener('beforeunload', () => {
+  globalAudioCache.clear();
+});
+
 export default globalAudioCache;
