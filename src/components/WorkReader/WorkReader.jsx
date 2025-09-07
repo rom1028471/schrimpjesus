@@ -961,7 +961,7 @@ const WorkReader = ({ work, onBack }) => {
           showVolumeControl={true}
         >
           {/* Кнопка отладки */}
-          
+          {/*
           <button
             onClick={() => setDebugMode(!debugMode)}
             style={{
@@ -984,7 +984,7 @@ const WorkReader = ({ work, onBack }) => {
           >
             🐛
           </button>
-          
+          */} 
           {headerVisible && (
             isMobile ? (
               <button className="hide-header-button" onClick={() => setHeaderVisible(false)}>
