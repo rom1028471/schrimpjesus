@@ -221,7 +221,11 @@ const WorkReader = ({ work, onBack }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [work, imageBlockIndices]);
 
-  // --- MUSIC: refs для аудио ---
+  // --- MUSIC: refs и константы для аудио ---
+  const lastValidMusicRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3; // Максимальное количество попыток воспроизведения
+  
   useEffect(() => {
     musicRefs.current = new Array(work.blocks.length).fill(null);
   }, [work]);
@@ -229,8 +233,14 @@ const WorkReader = ({ work, onBack }) => {
   // --- MUSIC: обработка скролла и активация (по центру области просмотра контейнера) ---
   useEffect(() => {
     let lastDistsLog = 0;
+    let lastProcessed = 0;
+    const THROTTLE_MS = 16; // Уменьшаем троттлинг для более отзывчивого скролла (60fps)
+    
     const handleMusic = () => {
       const now = Date.now();
+      if (now - lastProcessed < THROTTLE_MS) return;
+      lastProcessed = now;
+      
       if (debugMode && now - lastLog.current > 1000) {
         if (scrollRef.current && import.meta.env.DEV) {
           const pos = scrollRef.current.scrollTop;
@@ -238,18 +248,23 @@ const WorkReader = ({ work, onBack }) => {
         }
         lastLog.current = now;
       }
+      
       const container = scrollRef.current;
       if (!container) return;
+      
       const containerRect = container.getBoundingClientRect();
       const clientH = container.clientHeight;
       const scrollTop = container.scrollTop;
-      const contentCenter = scrollTop + clientH / 2; // статичная линия по центру контейнера
-      let found = null;
+      const contentCenter = scrollTop + clientH / 2;
+      
+      let candidates = [];
       const dists = [];
-      // Кандидаты: те зоны, в которых contentCenter находится МЕЖДУ top и bottom зоны
+      
+      // Собираем все зоны, пересекающиеся с центром экрана
       for (const i of musicBlockIndices) {
         const el = musicRefs.current[i];
         if (!el) continue;
+        
         const r = el.getBoundingClientRect();
         const centerViewportY = (r.top + r.bottom) / 2;
         const centerInContainer = centerViewportY - containerRect.top + scrollTop;
@@ -257,15 +272,40 @@ const WorkReader = ({ work, onBack }) => {
         const activationZone = clientH * radius;
         const zoneTop = centerInContainer - activationZone;
         const zoneBottom = centerInContainer + activationZone;
-        const inZone = contentCenter >= zoneTop && contentCenter <= zoneBottom;
-        const dist = Math.abs(centerInContainer - contentCenter);
-        if (debugMode) dists.push({ file: work.blocks[i].musicFile, dist, zoneTop, zoneBottom });
-        if (inZone) {
-          // Выбираем ближайшего к центру кандидата
-          if (!found || dist < Math.abs((found.centerInContainer ?? 0) - contentCenter)) {
-            found = { musicFile: work.blocks[i].musicFile, idx: i, radius, centerInContainer };
-          }
+        const distToCenter = Math.abs(centerInContainer - contentCenter);
+        const normalizedDist = distToCenter / activationZone; // 0..1 - насколько близко к центру зоны
+        
+        if (debugMode) dists.push({ 
+          file: work.blocks[i].musicFile, 
+          dist: distToCenter, 
+          zoneTop, 
+          zoneBottom,
+          normalizedDist,
+          inZone: contentCenter >= zoneTop && contentCenter <= zoneBottom
+        });
+        
+        // Если центр экрана внутри зоны, добавляем в кандидаты
+        if (contentCenter >= zoneTop && contentCenter <= zoneBottom) {
+          candidates.push({
+            musicFile: work.blocks[i].musicFile,
+            idx: i,
+            radius,
+            centerInContainer,
+            dist: distToCenter,
+            normalizedDist,
+            priority: 1 - normalizedDist // Приоритет: чем ближе к центру зоны, тем выше
+          });
         }
+      }
+      
+      // Сортируем кандидатов по приоритету (ближе к центру зоны = выше приоритет)
+      candidates.sort((a, b) => b.priority - a.priority);
+      let found = candidates[0] || null;
+      
+      if (debugMode && dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
+        console.log('[AUDIO] audio zones:', dists);
+        console.log('[AUDIO] selected candidate:', found);
+        lastDistsLog = now;
       }
       if (debugMode && dists.length && import.meta.env.DEV && now - lastDistsLog > 1000) {
         console.log('[AUDIO] dists:', dists);
@@ -286,15 +326,45 @@ const WorkReader = ({ work, onBack }) => {
             const zoneTop = centerInContainer - activationZone;
             const zoneBottom = centerInContainer + activationZone;
             if (contentCenter >= zoneTop && contentCenter <= zoneBottom) {
-              found = prev; // все еще в зоне — продолжаем играть
+              // Создаем новый объект с обновленными данными вместо переназначения
+              found = {
+                ...prev,
+                centerInContainer,
+                radius,
+                dist: Math.abs(centerInContainer - contentCenter)
+              };
               break;
             }
           }
         }
       }
 
-      // Не обновляем state, если трек не изменился
+      // Если трек не изменился, но находится на паузе - возобновляем
       if ((prev?.musicFile || null) === (found?.musicFile || null)) {
+        if (audioRef.current && found) {
+          lastValidMusicRef.current = found; // Обновляем последний валидный трек
+          if (audioRef.current.paused) {
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(e => {
+                console.warn('Resume failed, retrying...', e);
+                // Пробуем еще раз с экспоненциальной задержкой
+                const delay = Math.min(100 * Math.pow(2, retryCountRef.current), 1000);
+                retryCountRef.current = Math.min(retryCountRef.current + 1, MAX_RETRIES);
+                setTimeout(() => {
+                  if (audioRef.current && lastValidMusicRef.current === found) {
+                    audioRef.current.play().catch(console.warn);
+                  }
+                }, delay);
+              }).then(() => {
+                retryCountRef.current = 0; // Сбрасываем счетчик при успешном воспроизведении
+              });
+            }
+          }
+          if (fadeTarget < 0.1) {
+            setFadeTarget(1);
+          }
+        }
         return;
       }
       currentActiveRef.current = found;
@@ -313,13 +383,17 @@ const WorkReader = ({ work, onBack }) => {
 
     const previousFile = previousMusicFileRef.current;
     const currentFile = activeMusic?.musicFile;
+    const isSameFile = previousFile && currentFile && previousFile === currentFile;
 
     // Сохраняем позицию предыдущего трека при переключении
-    if (previousFile && currentFile && previousFile !== currentFile) {
+    if (previousFile && !isSameFile) {
       if (audioRef.current.src && audioRef.current.src.endsWith(previousFile)) {
+        const currentTime = audioRef.current.currentTime;
         lastPauseTime.current[previousFile] = Date.now();
-        lastPositions.current[previousFile] = audioRef.current.currentTime;
-        if (import.meta.env.DEV && debugMode) console.log('[AUDIO] saving position on switch:', audioRef.current.currentTime, 'for', previousFile);
+        lastPositions.current[previousFile] = currentTime;
+        if (import.meta.env.DEV && debugMode) {
+          console.log('[AUDIO] saving position on switch:', currentTime, 'for', previousFile);
+        }
       }
     }
 
@@ -356,13 +430,29 @@ const WorkReader = ({ work, onBack }) => {
       const decodedFileName = decodeURIComponent(urlFileName);
       
       if (decodedFileName === activeMusic.musicFile) {
-        // Для того же трека: если был на паузе (fade-out дошел до 0) — стартуем с 0 и поднимаем, иначе поднимаем с текущего уровня
+        // Для того же трека: если был на паузе (fade-out дошел до 0) — стартуем с 0 и поднимаем
         if (audioRef.current.paused) {
-          try { audioRef.current.volume = 0; } catch {}
-          audioRef.current.play().catch(() => {});
+          try { 
+            audioRef.current.volume = 0; 
+            // Принудительно сбрасываем позицию, если трек только что был на паузе
+            const lastPause = lastPauseTime.current[activeMusic.musicFile] || 0;
+            if (Date.now() - lastPause < 1000) { // Если пауза была недавно
+              audioRef.current.currentTime = 0;
+            }
+            audioRef.current.play().catch(e => {
+              if (import.meta.env.DEV) console.warn('[AUDIO] play failed:', e);
+            });
+          } catch (e) {
+            if (import.meta.env.DEV) console.warn('[AUDIO] volume set failed:', e);
+          }
         }
         setFadeTarget(1);
-        setAudioState(s => ({ ...s, playing: true, src: activeMusic.musicFile }));
+        setAudioState(s => ({
+          ...s, 
+          playing: true, 
+          src: activeMusic.musicFile,
+          lastActive: Date.now()
+        }));
         previousMusicFileRef.current = currentFile;
         return;
       }
@@ -372,30 +462,102 @@ const WorkReader = ({ work, onBack }) => {
     const base = import.meta.env.BASE_URL || '/';
     const src = `${base}assets/audio/${activeMusic.musicFile}`;
     
-    audioRef.current.src = src;
-    audioRef.current.loop = true;
+    // Для нового трека полностью сбрасываем состояние
+    const isNewTrack = previousMusicFileRef.current !== activeMusic.musicFile;
     
-    // Проверяем сохраненную позицию
-    const lastPause = lastPauseTime.current[activeMusic.musicFile];
-    const lastPos = lastPositions.current[activeMusic.musicFile];
-    
-    if (import.meta.env.DEV && debugMode) console.log('[AUDIO] checking saved position for', activeMusic.musicFile, 'lastPause:', lastPause, 'lastPos:', lastPos, 'timeDiff:', lastPause ? Date.now() - lastPause : 'N/A');
-    
-    if (lastPause && Date.now() - lastPause < PAUSE_MEMORY && lastPos) {
-      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] restoring position:', lastPos, 'for', activeMusic.musicFile);
-      audioRef.current.currentTime = lastPos;
-    } else {
-      if (import.meta.env.DEV && debugMode) console.log('[AUDIO] starting from beginning for', activeMusic.musicFile);
+    // Останавливаем и сбрасываем текущее воспроизведение
+    try {
+      audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.volume = 0;
+      audioRef.current.src = src;
+      audioRef.current.loop = true;
+      
+      // Восстанавливаем позицию, если трек не новый
+      if (!isNewTrack) {
+        const lastPause = lastPauseTime.current[activeMusic.musicFile];
+        if (lastPause && Date.now() - lastPause < PAUSE_MEMORY * 1000) {
+          const savedPos = lastPositions.current[activeMusic.musicFile];
+          if (savedPos !== undefined) {
+            audioRef.current.currentTime = savedPos;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to reset audio state:', e);
     }
     
-    // Любой старт трека — с 0 громкости (даже если это тот же трек после выхода из зоны)
-    try { audioRef.current.volume = 0; } catch {}
-    
-    audioRef.current.play().catch(() => {});
-    setFadeTarget(1);
+    // Устанавливаем состояние до начала воспроизведения
     setAudioState({ playing: true, src: activeMusic.musicFile });
-    previousMusicFileRef.current = currentFile;
+    
+    // Для нового трека сбрасываем fade target
+    if (isNewTrack) {
+      if (import.meta.env.DEV) console.log('[AUDIO] new track detected, resetting fade');
+      setFadeTarget(0);
+    } else {
+      // Для существующего трека начинаем с текущей громкости
+      if (audioRef.current) {
+        audioRef.current.volume = 0; // Начинаем с 0 даже для существующего трека
+      }
+    }
+    
+    // Обновляем предыдущий трек
+    previousMusicFileRef.current = activeMusic.musicFile;
+    lastValidMusicRef.current = activeMusic;
+    
+    // Запускаем воспроизведение с экспоненциальной задержкой при ошибках
+    const attemptPlay = (attempt = 0) => {
+      if (!audioRef.current || lastValidMusicRef.current !== activeMusic) return;
+      
+      const isNewTrack = previousMusicFileRef.current !== activeMusic.musicFile;
+      
+      // Всегда сбрасываем громкость перед воспроизведением
+      try {
+        if (isNewTrack) {
+          audioRef.current.volume = 0;
+          if (import.meta.env.DEV) console.log('[AUDIO] reset volume to 0 for new track');
+        } else {
+          // Для существующего трека начинаем с 0 и плавно поднимаем
+          audioRef.current.volume = 0;
+        }
+      } catch (e) {
+        console.warn('Failed to reset volume:', e);
+      }
+      
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('[AUDIO] playback started successfully');
+            // Для нового трека всегда запускаем fade-in
+            if (isNewTrack) {
+              if (import.meta.env.DEV) console.log('[AUDIO] starting fade-in for new track');
+              setFadeTarget(1);
+            } else if (fadeTarget < 0.1) {
+              // Для существующего трека только если не в процессе fade-out
+              setFadeTarget(1);
+            }
+            retryCountRef.current = 0;
+          })
+          .catch(e => {
+            if (e.name === 'AbortError') {
+              console.log('[AUDIO] Playback aborted, likely due to track change');
+              return; // Не пытаемся повторить, если воспроизведение было прервано
+            }
+            
+            if (attempt < MAX_RETRIES) {
+              const delay = Math.min(100 * Math.pow(2, attempt), 1000);
+              console.warn(`[AUDIO] Playback attempt ${attempt + 1} failed, retrying in ${delay}ms...`, e);
+              setTimeout(() => attemptPlay(attempt + 1), delay);
+            } else {
+              console.error('[AUDIO] Max playback retries reached', e);
+            }
+          });
+      }
+    };
+    
+    attemptPlay();
   }, [activeMusic, muted]);
 
   // --- MUSIC: fade in/out и громкость (time-based, rAF) ---
@@ -403,18 +565,37 @@ const WorkReader = ({ work, onBack }) => {
     if (!audioRef.current) return;
     if (fadeRafId.current) cancelAnimationFrame(fadeRafId.current);
 
+    // Не сбрасываем громкость здесь, чтобы не мешать анимации затухания
+    // Громкость будет установлена в startVolume ниже
+
     const startVolume = clamp01(Number(audioRef.current.volume) || 0);
     const targetVolume = clamp01(fadeTarget * (muted ? 0 : volume));
-    if (Math.abs(startVolume - targetVolume) < 0.005) {
-      try { audioRef.current.volume = targetVolume; } catch {}
-      // при полном затухании — пауза и сохранение позиции (только если не muted)
-      if (targetVolume === 0 && !audioRef.current.paused && !muted) {
-        const file = audioRef.current.src.split('/').pop();
-        const currentTime = audioRef.current.currentTime;
-        lastPauseTime.current[file] = Date.now();
-        lastPositions.current[file] = currentTime;
-        if (import.meta.env.DEV) console.log('[AUDIO] saving position on fade-out:', currentTime, 'for', file);
-        audioRef.current.pause();
+    
+    // Минимальное изменение громкости для срабатывания анимации
+    if (Math.abs(startVolume - targetVolume) < 0.001) {
+      try { 
+        audioRef.current.volume = targetVolume; 
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn('[AUDIO] volume set failed:', e);
+      }
+      
+      // При полном затухании — пауза и сохранение позиции (только если не muted)
+      if (targetVolume === 0) {
+        const file = audioRef.current?.src?.split('/')?.pop();
+        if (file) {
+          const currentTime = audioRef.current.currentTime;
+          lastPauseTime.current[file] = Date.now();
+          lastPositions.current[file] = currentTime;
+          if (import.meta.env.DEV) console.log('[AUDIO] saving position on fade-out:', currentTime, 'for', file);
+          // Пауза только если это не текущий активный трек
+          if (activeMusic?.musicFile !== file) {
+            try {
+              audioRef.current.pause();
+            } catch (e) {
+              console.warn('Pause failed:', e);
+            }
+          }
+        }
       }
       return;
     }
@@ -455,11 +636,20 @@ const WorkReader = ({ work, onBack }) => {
       } else {
         try { audioRef.current.volume = targetVolume; } catch {}
         fadeRafId.current = 0;
-        if (targetVolume === 0 && !audioRef.current.paused && !muted) {
+        // При достижении нулевой громкости ставим на паузу и сохраняем позицию
+        if (targetVolume === 0) {
           const file = audioRef.current.src.split('/').pop();
-          lastPauseTime.current[file] = Date.now();
-          lastPositions.current[file] = audioRef.current.currentTime;
-          audioRef.current.pause();
+          if (file) {
+            lastPauseTime.current[file] = Date.now();
+            lastPositions.current[file] = audioRef.current.currentTime;
+            if (activeMusic?.musicFile !== file) {
+              try {
+                audioRef.current.pause();
+              } catch (e) {
+                console.warn('Pause after fade failed:', e);
+              }
+            }
+          }
         }
       }
     };
