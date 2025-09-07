@@ -3,6 +3,7 @@ import useLockBodyScroll from '../../hooks/useLockBodyScroll';
 import Header from '../Header/Header';
 import './WorkReader.css';
 import { useSound } from '../../contexts/SoundContext';
+import globalAudioCache from '../../utils/audioCache';
 
 const VISIBILITY_OFFSET = 0.2; // 20% запас
 const MAX_WIDTH = 900;
@@ -125,9 +126,6 @@ const WorkReader = ({ work, onBack }) => {
   const lastSwitchTimeRef = useRef(0);
   const stableCandidateRef = useRef({ candidate: null, since: 0 });
   const lastFoundTimeRef = useRef(0);
-  
-  // Глобальный кэш аудио объектов для работы без интернета
-  const audioCache = useRef(new Map()); // { [musicFile]: Audio }
 
   // Viewport-фиксированные debug-оверлеи удалены. В отладке рисуем только аудио-полосы внутри скролл-контейнера.
 
@@ -498,16 +496,8 @@ const WorkReader = ({ work, onBack }) => {
     // Для нового трека полностью сбрасываем состояние
     const isNewTrack = previousMusicFileRef.current !== activeMusic.musicFile;
     
-    // Проверяем кэш аудио
-    let cachedAudio = audioCache.current.get(activeMusic.musicFile);
-    if (!cachedAudio) {
-      // Создаем новый аудио объект и кэшируем его
-      cachedAudio = new Audio();
-      cachedAudio.preload = 'auto';
-      cachedAudio.loop = true;
-      cachedAudio.src = src;
-      audioCache.current.set(activeMusic.musicFile, cachedAudio);
-    }
+    // Используем глобальный кэш аудио
+    let cachedAudio = globalAudioCache.getAudio(activeMusic.musicFile, base);
     
     // Останавливаем и сбрасываем текущее воспроизведение
     try {
@@ -789,15 +779,8 @@ const WorkReader = ({ work, onBack }) => {
         const desiredSrc = `${base}assets/audio/${candidate.musicFile}`;
         const currentSrcFile = audioRef.current.src ? decodeURIComponent(audioRef.current.src.split('/').pop()) : null;
         if (currentSrcFile !== candidate.musicFile) {
-          // Используем кэшированный аудио объект
-          let cachedAudio = audioCache.current.get(candidate.musicFile);
-          if (!cachedAudio) {
-            cachedAudio = new Audio();
-            cachedAudio.preload = 'auto';
-            cachedAudio.loop = true;
-            cachedAudio.src = desiredSrc;
-            audioCache.current.set(candidate.musicFile, cachedAudio);
-          }
+          // Используем глобальный кэш аудио
+          const cachedAudio = globalAudioCache.getAudio(candidate.musicFile, base);
           audioRef.current = cachedAudio;
           try { audioRef.current.currentTime = 0; } catch {}
         }

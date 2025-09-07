@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import './WorkIntro.css';
+import globalAudioCache from '../../utils/audioCache';
 
 const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   const [currentLine, setCurrentLine] = useState(-1);
@@ -55,44 +56,16 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         const fetchWithRetry = async (url, attempts = 3) => {
           for (let i = 0; i < attempts; i++) {
             try {
-              // Для аудио файлов проверяем готовность к воспроизведению
+              // Для аудио файлов используем глобальный кэш
               if (url.includes('/audio/')) {
-                const audio = new Audio();
-                audio.preload = 'auto';
-                
-                return new Promise((resolve) => {
-                  let resolved = false;
-                  
-                  const cleanup = () => {
-                    if (resolved) return;
-                    resolved = true;
-                    audio.removeEventListener('canplaythrough', onCanPlay);
-                    audio.removeEventListener('error', onError);
-                    audio.removeEventListener('loadstart', onLoadStart);
-                  };
-                  
-                  const onCanPlay = () => {
-                    cleanup();
-                    resolve(true);
-                  };
-                  
-                  const onError = (e) => {
-                    cleanup();
-                    if (import.meta.env.DEV) console.warn('Audio preload error:', url, e);
-                    resolve(false);
-                  };
-                  
-                  const onLoadStart = () => {
-                    // Убираем таймаут - ждем до полной загрузки
-                    if (import.meta.env.DEV) console.log('Audio preload started:', url);
-                  };
-                  
-                  audio.addEventListener('canplaythrough', onCanPlay);
-                  audio.addEventListener('error', onError);
-                  audio.addEventListener('loadstart', onLoadStart);
-                  
-                  audio.src = url;
-                });
+                const musicFile = url.split('/').pop();
+                try {
+                  await globalAudioCache.preloadAudio(musicFile, base);
+                  return true;
+                } catch (e) {
+                  if (import.meta.env.DEV) console.warn('Audio preload error:', url, e);
+                  throw e;
+                }
               } else {
                 // Для изображений используем более надежный fetch
                 const controller = new AbortController();
