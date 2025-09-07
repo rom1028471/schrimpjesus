@@ -12,7 +12,7 @@ export const useFontSize = () => {
 
 export const FontSizeProvider = ({ children }) => {
   const MIN_FONT_SIZE = 0.9;
-  const MAX_FONT_SIZE = 1.5;
+  const MAX_FONT_SIZE = 1.05;
   const FONT_STEP = 0.05;
 
   // Инициализируем с сохраненным значением или дефолтным

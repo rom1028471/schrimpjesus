@@ -43,6 +43,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
   useEffect(() => {
     if (!mediaToPreload || mediaToPreload.length === 0) {
       setPreloadDone(true);
+      setPreloadProgress(1);
       return;
     }
 
@@ -58,8 +59,11 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
 
     let isMounted = true;
     
+    let progressInterval = null;
     const preload = async () => {
       try {
+        if (import.meta.env.DEV) console.log('Начало загрузки медиа:', mediaUrls);
+        
         // Создаём массив промисов для параллельной загрузки
         const promises = mediaUrls.map((url, index) => 
           fetch(url, { 
@@ -70,9 +74,12 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             return res.blob();
           })
-          .then(() => index)
+          .then(blob => {
+            if (import.meta.env.DEV) console.log(`Загружено: ${url} (${Math.round(blob.size / 1024)} KB)`);
+            return index;
+          })
           .catch(e => {
-            if (import.meta.env.DEV) console.warn('Preload failed:', url, e);
+            if (import.meta.env.DEV) console.warn('Ошибка загрузки:', url, e);
             return index; // Продолжаем считать как успешно загруженный
           })
         );
@@ -81,20 +88,35 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         let completed = 0;
         const total = mediaUrls.length;
         
-        for (const promise of promises) {
-          if (!isMounted) return;
-          await promise;
-          completed += 1;
-          // Обновляем прогресс с плавным переходом
-          if (isMounted) {
-            setPreloadProgress(completed / total);
+        // Обновляем прогресс каждые 100мс для плавности
+        progressInterval = setInterval(() => {
+          if (!isMounted) {
+            clearInterval(progressInterval);
+            return;
           }
-        }
+          const progress = completed / total;
+          setPreloadProgress(prev => Math.max(prev, progress));
+        }, 100);
         
-        if (isMounted) setPreloadDone(true);
+        // Ждем завершения всех загрузок
+        await Promise.all(promises);
+        
+        if (!isMounted) return;
+        
+        // Убедимся, что прогресс дошел до 100%
+        setPreloadProgress(1);
+        setPreloadDone(true);
+        
+        if (import.meta.env.DEV) console.log('Все медиа загружены');
+        
       } catch (e) {
-        console.error('Error during preload:', e);
-        if (isMounted) setPreloadDone(true); // В любом случае разрешаем продолжить
+        console.error('Ошибка при загрузке медиа:', e);
+        if (isMounted) {
+          setPreloadDone(true); // В любом случае разрешаем продолжить
+          setPreloadProgress(1);
+        }
+      } finally {
+        if (progressInterval) clearInterval(progressInterval);
       }
     };
 
@@ -103,7 +125,7 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
     return () => {
       isMounted = false;
     };
-  }, [mediaToPreload, base]);
+  }, [mediaToPreload]);
 
   // Интро текст с анимированными строками
   const introLines = [
@@ -260,10 +282,10 @@ const WorkIntro = ({ work, onStartReading, onBack, onPrimeAudio }) => {
         {/* Кнопка начать чтение */}
         <div className={`intro-action ${showButton ? 'visible' : ''}`}>
           <button 
-            className={`start-reading-button ${!preloadDone ? '' : ''} ${firstButtonClicked ? 'clicked' : ''}`}
+            className={`start-reading-button ${!preloadDone ? 'loading' : ''} ${firstButtonClicked ? 'clicked' : ''}`}
             onClick={handleStart}
-            disabled={firstButtonClicked || !showButton}
-            aria-disabled={firstButtonClicked || !showButton}
+            disabled={!preloadDone || firstButtonClicked || !showButton}
+            aria-disabled={!preloadDone || firstButtonClicked || !showButton}
             title={preloadDone ? 'Готово к чтению' : 'Дождитесь загрузки медиа'}
           >
             <span className="button-text">Приступить к чтению</span>
